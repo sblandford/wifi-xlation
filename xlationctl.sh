@@ -154,11 +154,12 @@ if [[ $acme ]]; then
     options="$options -v $path/cust/ssl:/etc/ssl/acme"
 fi
 
-if [[ ! "$options" =~ net=host ]]; then
+if [[ $offset ]]; then
+    if [[ ! "$options" =~ net=host ]]; then
+        echo "Portshift can not be specified with --ip option"
+        usage
+    fi
     options="$options -p $(( offset + 80)):80/tcp -p $(( offset + 443)):443/tcp "
-else
-    echo "Portshift can not be specified with --ip option"
-    usage
 fi
 
 if [[ $params ]] && [[ "$verb" != "start" ]]; then
