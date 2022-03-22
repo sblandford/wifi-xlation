@@ -159,6 +159,8 @@ if [[ $offset ]]; then
         echo "Portshift can not be specified with --ip option"
         usage
     fi
+else
+    offset=0
     options="$options -p $(( offset + 80)):80/tcp -p $(( offset + 443)):443/tcp "
 fi
 
@@ -186,7 +188,7 @@ case "$verb" in
             docker start -a -i "$TEMPLATE_NAME"
         else
             if [[ ! -f "src/html/js/janus.js" ]]; then
-                (sleep 5; docker cp $TEMPLATE_NAME:/usr/share/javascript/janus/janus.js src/html/js/janus.js ) &
+                (sleep 5; docker cp $TEMPLATE_NAME:/usr/share/javascript/janus-gateway/janus.js src/html/js/janus.js ) &
             fi
             if [[ ! -f "cust/conf/languages.conf" ]]; then
                 mkdir -p "cust/conf"
