@@ -220,14 +220,6 @@ esac
 exit
 
 
-# --net=host --cap-add NET_ADMIN
-#        -e BIND_IP_AND_PREFIX_LENGTH=192.168.1.2/24 \
-
-#        -p 80:80/tcp -p 443:443/tcp \
-
-
-# docker image prune -f
-
 #ffmpeg -re -f lavfi -i sine=frequency=216 -c:a libopus -ac 1 -b:a 32k -ar 48000 -f rtp rtp://0.0.0.0:5000
 
 # Admin interface query of listeners and translators
