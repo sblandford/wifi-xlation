@@ -54,3 +54,6 @@ To use a different IP address this Docker container must be run with --net=host 
 ```
 
 The file that specifies the languages and passwords. It is highly recommended to at least change the passwords from "secret" otherwise, by default, anyone can become an instant translator resulting in chaos.
+
+## /etc/ssl/acme
+This is where the Let's Encrypt certificates are stored. Mounting this directory to the host will prevent the certificates being lost if the container is destroyed.
