@@ -1,0 +1,364 @@
+.playing {
+    background-color : lightgreen;
+}
+.errorState {
+    background-color : lightgoldenrodyellow;
+}
+
+body.body {
+    background-color : black;
+    color: white;
+}
+
+.blocker {
+  pointer-events: none;
+  opacity: 0.3;
+  background-color: gray !important;
+}
+
+/* Main page */
+div.page {
+    position : absolute;
+    width: 95vw;
+    max-width : 50em;
+    min-width : 18em;
+}
+@media screen and (orientation:portrait) {
+    th.splitter, td.splitter  {
+        display : block;
+    }
+}
+table.splitter {
+    height: 100%;
+    width : 100%;
+}
+.txBackground {
+    background-color: #400000;
+}
+
+/* Receiver UI */
+table.tx, th.tx, td.tx, table.rx, th.rx, td.rx  {
+    width : 100%;
+}
+.panelHeightHalf {
+    height: 45vh;
+}
+.panelHeightFull {
+    height: 80vh;
+}
+
+div.tx, div.rx {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+button.tx, button.rx {
+
+}
+
+
+/* Top section */
+/* Dropdown Button */
+.dropbtnTx, .dropbtn {
+    /*background-color: DodgerBlue ; */
+    background-color: Black;
+    color: white;
+    padding: 1em;
+    font-size: 1em;
+    font-weight: bold;
+    min-width: 10em;
+    /*border: none;*/
+    border: 0.2em solid DodgerBlue;
+    
+    cursor: pointer;
+}
+/* Dropdown button on hover & focus */
+.dropbtnTx:active, .dropbtn:active {
+    background-color: #2980B9;
+}
+.dropbtnTx:disabled {
+    color: GrayText;
+}
+/* The container <div> - needed to position the dropdown content */
+.dropdownTx, .dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+/* Dropdown Content (Hidden by Default) */
+.dropdown-contentTx, .dropdown-content {
+    top: 100%;
+    display: none;
+    position: absolute;
+    background-color: DarkBlue;
+    min-width: 15em;
+    box-shadow: 0em 0.5em 1em 0em rgba(0,0,0,0.2);
+    z-index: 1;
+    border: 0.2em solid DodgerBlue;
+}
+/* Links inside the dropdown */
+.dropdown-contentTx a, .dropdown-content a {
+    padding: 0.75em 1em;
+    text-decoration: none;
+    display: block;
+    font-size: 1em;
+    font-weight: bold;
+}
+/* Change color of dropdown links on hover */
+.dropdown-contentTx a:active, .dropdown-content a:active {
+    background-color: blue;
+}
+.dropdown-contentTx a:hover, .dropdown-content a:hover {
+    background-color: blue;
+}
+/* Show a disabled channel */
+.disabled {
+    pointer-events:none;
+    opacity:0.6;
+}
+/* Show the dropdown menu (use JS to add this class to the .dropdown-content container when the user clicks on the dropdown button) */
+.show {
+    display:block !important;
+}
+
+
+/* Middle section */
+/*Channel display */
+.chName {
+    font-weight : bold;
+    font-size : 2em;
+}
+.chNameDead {
+    color: gray;
+}
+.chNameNormal {
+    color: white;
+}
+.chNameBusy {
+    color: sandybrown;
+}
+
+/* Stats section */
+tr.stat {
+    height:3em;
+}
+div.vidStopped {
+    opacity: 0.0;
+}
+div.vidStarted {
+    z-index: 2;
+    opacity: 0.7;
+    /* Add the blur effect */
+    filter: blur(6px);
+    -webkit-filter: blur(6px);
+}
+div.vidStartedTx {
+    z-index: 2;
+    opacity: 0.7;
+    /* Add the blur effect */
+    filter: blur(1px);
+    -webkit-filter: blur(1px);
+}
+.hideItem {
+    display: none !important;
+}
+
+
+div.stat {
+    /* display : none; */
+    /* font-family: monospace; */
+}
+
+/* Lowest section */
+/* Start/Stop Button */
+.startStopBtn {
+    /*background-color: DodgerBlue ;*/
+    padding: 1em;
+    font-size: 1em;
+    font-weight: bold;
+    min-width: 10em;
+    /*border: none; */
+    cursor: pointer;
+    border: 0.2em solid DodgerBlue;
+    background-color: Black;
+    color: white;
+}
+/* Start/stop button on hover & focus */
+.startStopBtn:active {
+    background-color: #2980B9;
+}
+.startStopBtn:disabled {
+    color: GrayText;
+}
+
+.micDiv {
+    position: fixed;
+    top: 5em;
+    left: 2%;
+    z-index: 1;
+}
+#micImg {
+    -webkit-filter: invert(100%);
+    filter: invert(100%);    
+    width: 3em;
+    height: 3em;    
+}
+
+
+/* Floating QR code button */
+.qrDiv {
+    position : absolute;
+    top : 5em;
+    right : 2%;
+}
+/* QR code button */
+.qrBtn {
+    padding: 1em;
+    font-size: 1em;
+    font-weight: bold;
+    /* border: none; */
+    cursor: pointer;
+    border: 0.2em solid DodgerBlue;
+    background-color: Black;
+    color: white;
+}
+/* QR code button on hover & focus */
+.qrBtn:active {
+    background-color: #2980B9;
+}
+.qrShow {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+/* QR code display box*/
+.qrBox {
+    opacity: 0;
+    display: block;
+    visibility: hidden;
+    z-index: 1;
+    background-color: white;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    /* bring your own prefixes */
+    transform: translate(-50%, -50%);
+    box-shadow: 0em 0.5em 1em 0em rgba(0,0,0,0.2);
+}
+/* QR Object */
+.qrObj {
+    max-width : 50em;
+}
+
+.keyDivHolder {
+    position: relative;
+}
+.keyDiv {
+    position: absolute;
+    left: 2%;
+    z-index: 1;
+}
+#keyImg {
+    -webkit-filter: invert(100%);
+    filter: invert(100%);    
+    width: 3em;
+    height: 3em;    
+}
+
+.iconDisabled {
+    filter: invert(100%) brightness(0.5) !important;
+}
+
+
+/* Geo Confirmation Request */
+.passBox {
+    width : 100%;
+    height : 100%;
+    opacity: 0;
+    display: block;
+    visibility: hidden;
+    z-index: 1;
+    background-color: MidnightBlue;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    /* bring your own prefixes */
+    transform: translate(-50%, -50%);
+    box-shadow: 0em 0.5em 1em 0em rgba(0,0,0,0.2);
+}
+.passShow {
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+.passWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;    
+}
+.passBoxText {
+    font-size : 2em;
+    text-align: center;
+}
+.passBoxPassword {
+    padding: 0.1em;
+    font-size : 1em;
+    border: 0.1em solid lightgrey;
+    text-security:disc;
+    -webkit-text-security:disc;
+}
+.passBtn {
+    padding: 0.5em;
+    font-size: 0.8em;
+    font-weight: bold;
+    /* border: none; */
+    cursor: pointer;
+    border: 0.2em solid DodgerBlue;
+    background-color: Black;
+    color: white;    
+}
+.passBtn:disabled {
+    color: GrayText;    
+}
+
+/* QR code display box*/
+.passFailBox {
+    display: block;
+    visibility: hidden;
+    padding: 2em;
+    z-index: 1;
+    background-color: black;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    color: red;
+    font-size: 2em;
+    font-weight: bold;
+    /* bring your own prefixes */
+    transform: translate(-50%, -50%);
+    box-shadow: 0em 0.5em 1em 0em rgba(0,0,0,0.2);
+}
+@keyframes passFailInOut {
+    0%   { opacity:0; visibility: visible; }
+    50%  { opacity:1; }
+    100% { opacity:0; visibility: visible; }
+}
+@-o-keyframes passFailInOut {
+    0%   { opacity:0; visibility: visible; }
+    50%  { opacity:1; }
+    100% { opacity:0; visibility: hidden; }
+}
+@-moz-keyframes passFailInOut {
+    0%   { opacity:0; visibility: visible; }
+    50%  { opacity:1; }
+    100% { opacity:0; visibility: hidden; }
+}
+@-webkit-keyframes passFailInOut {
+    0%   { opacity:0; visibility: visible; }
+    50%  { opacity:1; }
+    100% { opacity:0; visibility: hidden; }
+}
+.passFailBoxShow {
+    -webkit-animation: passFailInOut 4s 1;
+    -moz-animation: passFailInOut 4s 1;
+    -o-animation: passFailInOut 4s 1;
+    animation: passFailInOut 4s 1;
+}

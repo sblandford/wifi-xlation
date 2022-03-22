@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<head>
+
+</head>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1" >
+        <title>Translation QR code</title>
+        <script src="js/qrcode.js"></script>
+        <script>
+            var gBaseURL = window.location.protocol + "//" + window.location.hostname, port = window.location.port;
+            if (port !== "" && port !== "80" && port !== "443") {
+                gBaseURL += ":" + port;
+            }
+            
+        </script>
+    </head>
+    <body>
+        <div style="display: flex;align-items: center;justify-content: center">
+            <table>
+                <tr><td><div><h1 style="font-size: 1.2em;"><script>document.write(gBaseURL);</script></h1></div></tr></td>
+                <tr><td><div id="qrcode"></div></tr></td>
+            </table>
+        </div>
+        <script type="text/javascript">
+            new QRCode(document.getElementById("qrcode"), gBaseURL);
+        </script>
+    </body>
+</html>

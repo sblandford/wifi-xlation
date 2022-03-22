@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>    
+    <head>
+        <script type="text/javascript">    
+        function getText (url, div) { 
+            fetch(url)
+               .then(function(response) {
+                   response.text().then(function(text) {
+                       document.getElementById(div).innerHTML = "<pre>" + text + "</pre>";
+                   });
+               });
+
+        }   
+        getText("good.txt", "good");
+        getText("bad.txt", "bad");
+        setInterval(() => {
+            getText("good.txt", "good");
+            getText("bad.txt", "bad");
+        }, 5000);
+        </script>
+    </head>
+    <body>
+        <div id="good"></div>
+        <div id="bad" style="color: red;"></div>
+    </body>
+</html>
