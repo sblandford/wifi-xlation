@@ -59,7 +59,7 @@ fi
 verb=$1
 shift
 
-[[ $# -gt 0 ]] && options=true
+[[ $# -gt 0 ]] && params=true
 interactive="-it"
 while [[ $# -gt 0 ]]; do
     switch=$1
@@ -161,7 +161,7 @@ else
     usage
 fi
 
-if [[ $options ]] && [[ "$verb" != "start" ]]; then
+if [[ $params ]] && [[ "$verb" != "start" ]]; then
     echo "Options have no meaning unless used with the \"start\" command"
     exit
 fi
@@ -175,7 +175,7 @@ case "$verb" in
             exit
         fi
         if docker ps -a | grep "$TEMPLATE_NAME"; then
-            if [[ $options ]]; then
+            if [[ $params ]]; then
                 echo "An existing container can only be restarted. No further options can be supplied."
                 echo "$( basename "$0") start"
                 exit            
