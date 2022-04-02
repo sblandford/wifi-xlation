@@ -377,8 +377,11 @@ function pollStatus () {
                                     'participantsTx':txParticipants
                         });
                     }
+                    // Sort array by channel ID
+                    newStatus.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
+                    // If any change then clone array
                     if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
-                        gStatus = newStatus;
+                        gStatus = JSON.parse(JSON.stringify(newStatus));
                         gStatusUpdate = true;
                         updateDisplay();
                     }                    
