@@ -31,26 +31,25 @@ Web server http listening port
 #### Default: 443
 Web server https listening port
 
-## RTP_BASE_PORT
-#### Default: 5000
-First RTP port used for sending the Opus/RTP stream for broadcast to the listeners. An application such as ffmpeg can use this to send audio to a language channel instead of using the web interface to send audio. Each language increments the port number by 2 in the order in which they appear in the languages.conf file.
-
 ## BIND_IP_AND_PREFIX_LENGTH
 #### Default: 0.0.0.0/24
 Bind to a different IP to the Docker host. This is useful if the host is already listening on port 80/443 and you would like to still use these default ports for the application. One scenario where this may apply is when running this Docker container on a NAS that has an admin interface on the standard ports. This is only possible if the host can be set up so that the services it runs on ports 80 and 443 can also be bound to just one IP address.
 
 To use a different IP address this Docker container must be run with --net=host and --cap-add NET_ADMIN options.
 
+## IGNORE_MDNS
+#### Default: false
+Useful to set true if clients aren't in the same local network
 
 # Useful mount points
 ## /etc/languages.conf
 #### Default:  
 ```
 #RTP Port,Language,Translator password
-5000,English,secret
-5002,Français,secret
-5004,Deutsch,secret
-5006,Español,secret
+5006,English,secret
+5008,Français,secret
+5010,Deutsch,secret
+5012,Español,secret
 ```
 
 The file that specifies the languages and passwords. It is highly recommended to at least change the passwords from "secret" otherwise, by default, anyone can become an instant translator resulting in chaos.

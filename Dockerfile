@@ -8,8 +8,8 @@ ENV SSL_KEY=
 ENV ADMIN_PASSWORD=xlationoverlord
 ENV HTTP_STATIC_PORT=80
 ENV HTTPS_STATIC_PORT=443
-ENV RTP_BASE_PORT=5000
 ENV BIND_IP_AND_PREFIX_LENGTH=0.0.0.0/24
+ENV IGNORE_MDNS=false
 
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf

@@ -127,6 +127,7 @@ if [[ $bind_ip ]]; then
     param "nat_1_1_mapping" "\"$bind_ip\""
     param "keep_private_host" "false"
 fi
+param "ignore_mdns" "$IGNORE_MDNS"
 
 file="/etc/janus/janus.transport.http.jcfg"
 param "ip" "\"127.0.0.1\""
@@ -233,7 +234,7 @@ Language-$(( id + 1 )): {
     description = \"$lang\"
     audio = true
     video = false
-    audioport = $(( RTP_BASE_PORT + (id * 2) ))
+    audioport = $port
     audiopt = 111
     audiortpmap = \"opus/48000/2\"
 }" >> /etc/janus/janus.plugin.streaming.jcfg
@@ -246,7 +247,7 @@ room-$(( id + 1 )): {
     record = false
     rtp_forward_host = \"localhost\"
     rtp_forward_host_family = \"ipv4\"
-    rtp_forward_port = $(( RTP_BASE_PORT + (id * 2) ))
+    rtp_forward_port = $port
     rtp_forward_codec = \"opus\"
     rtp_forward_ptype = 111
 }" >> /etc/janus/janus.plugin.audiobridge.jcfg
@@ -257,6 +258,8 @@ done
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_voicemail.*/\1\2\"libjanus_voicemail.so,libjanus_echotest.so,libjanus_duktape.so,libjanus_textroom.so,libjanus_sip.so,libjanus_recordplay.so,libjanus_videocall.so,libjanus_lua.so,libjanus_videoroom.so,libjanus_nosip.so\"/" /etc/janus/janus.jcfg
 # Disable unwanted transports
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_rabbitmq.*/\1\2\"libjanus_websockets.so,libjanus_pfunix.so,libjanus_nanomsg.so,libjanus_mqtt.so,libjanus_rabbitmq.so\"/" /etc/janus/janus.jcfg
+
+
 
 nginx
 janus
