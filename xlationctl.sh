@@ -1,18 +1,19 @@
 #!/bin/bash
-TEMPLATE_NAME="wifi-xlation"
+DOCKER_NAME="wifi-xlation"
+IMAGE_TAG="simonblandford/wifi-xlation:latest"
 path=$( pwd )
 
 usage () {
     echo "$( basename "$0" ) <start|stop|status|remove> [--letsencript|acme <domain> <email> | --ssl] [--ip <ip address> | --portshift <integer>] [--dev] [--custom] [--daemon] [-dummy]
         start
-            Start a new or existing $TEMPLATE_NAME docker.
+            Start a new or existing $DOCKER_NAME docker.
             If starting an existing docker then all further command line options will be ignored.
         stop
-            Stop a running $TEMPLATE_NAME docker.
+            Stop a running $DOCKER_NAME docker.
         status
-            Show the status of the $TEMPLATE_NAME docker.
+            Show the status of the $DOCKER_NAME docker.
         remove
-            Delete a running or stopped $TEMPLATE_NAME docker. Required to run under different command line arguments.
+            Delete a running or stopped $DOCKER_NAME docker. Required to run under different command line arguments.
         --letsencript <domain> <email>
             Invoke Letsencyrpt to create a certificate for <domain> with a contact email <email>.
             This is invoked for renewal if an existing certificate is found.
@@ -48,7 +49,7 @@ dupe () {
 }
 
 printcommand () {
-    echo "docker run $interactive --name=\"$TEMPLATE_NAME\" $options -t \"$TEMPLATE_NAME\""
+    echo "docker run $interactive --name=\"$DOCKER_NAME\" $options -t \"$IMAGE_TAG\""
 }
 
 if [[ "$path" =~ " " ]]; then
@@ -173,11 +174,11 @@ case "$verb" in
     start)
         [[ $dummy ]] && printcommand && exit
         chmod +x src/bin/xlation.sh
-        if docker ps | grep "$TEMPLATE_NAME"; then
+        if docker ps | grep "$DOCKER_NAME"; then
             echo "Xlation already running"
             exit
         fi
-        if docker ps -a | grep "$TEMPLATE_NAME"; then
+        if docker ps -a | grep "$DOCKER_NAME"; then
             if [[ $params ]]; then
                 echo "An existing container can only be restarted. No further options can be supplied."
                 echo "$( basename "$0") start"
@@ -185,10 +186,10 @@ case "$verb" in
             fi
             echo "Re-starting existing container"
             echo "(New paramaters have no effect when restarting an existing container)"
-            docker start -a -i "$TEMPLATE_NAME"
+            docker start -a -i "$DOCKER_NAME"
         else
             if [[ ! -f "src/html/js/janus.js" ]]; then
-                (sleep 5; docker cp $TEMPLATE_NAME:/usr/share/javascript/janus-gateway/janus.js src/html/js/janus.js ) &
+                (sleep 5; docker cp $DOCKER_NAME:/usr/share/javascript/janus-gateway/janus.js src/html/js/janus.js ) &
             fi
             if [[ ! -f "cust/conf/languages.conf" ]]; then
                 mkdir -p "cust/conf"
@@ -197,21 +198,21 @@ case "$verb" in
             if [[ $acmetrigger ]]; then
                 echo "Re-using Letsencyrpt for $domain"
             fi            
-            docker run $interactive --name="$TEMPLATE_NAME" \
+            docker run $interactive --name="$DOCKER_NAME" \
                 $options \
-                -t "$TEMPLATE_NAME"
+                -t "$IMAGE_TAG"
         fi
         ;;
     stop)
         echo "Stopping"
-        docker stop $TEMPLATE_NAME
+        docker stop $DOCKER_NAME
         ;;
     status)
-        docker ps -a -f "name=$TEMPLATE_NAME"
+        docker ps -a -f "name=$DOCKER_NAME"
         ;;
     remove)
         echo "Removing"
-        docker rm -f $TEMPLATE_NAME
+        docker rm -f $DOCKER_NAME
         ;;
 #    prune)
 #        docker image prune -f
