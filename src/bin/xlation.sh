@@ -153,8 +153,8 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
 }" >/etc/nginx/sites-enabled/default
         
     echo "server {
-        listen "$nginx_bind_ip"443 ssl http2 default_server;
-        listen [::]:443 ssl http2 default_server;
+        listen "$nginx_bind_ip"$HTTPS_STATIC_PORT ssl http2 default_server;
+        listen [::]:$HTTPS_STATIC_PORT ssl http2 default_server;
 
         root /var/www/html;
 
@@ -182,8 +182,8 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
 }" > /etc/nginx/sites-enabled/default_ssl
 else
     echo "server {
-        listen "$nginx_bind_ip"80 default_server;
-        listen [::]:80 default_server;
+        listen "$nginx_bind_ip"$HTTP_STATIC_PORT default_server;
+        listen [::]:$HTTP_STATIC_PORT default_server;
                 
         root /var/www/html;
         
