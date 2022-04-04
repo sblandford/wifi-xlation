@@ -140,8 +140,8 @@ param "enforce_cors" "false"
 
 if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
     echo "server {
-        listen "$nginx_bind_ip"80 default_server;
-        listen [::]:80 default_server;
+        listen "$nginx_bind_ip"$HTTP_STATIC_PORT default_server;
+        listen [::]:$HTTP_STATIC_PORT default_server;
         
         return 301 https://\$host\$request_uri;
         
