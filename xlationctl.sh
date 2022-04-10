@@ -236,3 +236,4 @@ exit
 
 # ffmpeg -y -f lavfi -i color=size=130x36:duration=5:rate=25:color=ffbf00 -vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:fontsize=30:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='MUTED'" -pix_fmt yuv420p -t 5 muted.m4v
 
+#ffmpeg -re -f lavfi -i testsrc=size=640x320:rate=30 -f lavfi -i sine=f=220:b=1 -af volume=0.1 -c:a libopus -b:a 64k -vn -f rtp rtp://0.0.0.0:5006 -c:v vp8 -b:v 800000 -an -f rtp rtp://0.0.0.0:5008

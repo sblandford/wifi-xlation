@@ -222,7 +222,9 @@ id=0
 for line in $( grep -P -v "^\s*#" /etc/languages.conf ); do
     port=$( echo "$line" | cut -d "," -f 1 )
     lang=$( echo "$line" | cut -d "," -f 2 )
-    pin=$( echo "$line" | cut -d "," -f 3- )
+    videoport=$( echo "$line" | cut -d "," -f 3 )
+    videobw=$( echo "$line" | cut -d "," -f 4 )
+    pin=$( echo "$line" | cut -d "," -f 5- )
     if [[ ${#port} -lt 4 ]] || [[ ${#lang} -lt 1 ]] || [[ ${#pin} -lt 1 ]]; then
         continue
     fi
@@ -233,11 +235,23 @@ Language-$(( id + 1 )): {
     secret = \"$RANDOM\"
     description = \"$lang\"
     audio = true
-    video = false
     audioport = $port
     audiopt = 111
     audiortpmap = \"opus/48000/2\"
-}" >> /etc/janus/janus.plugin.streaming.jcfg
+    audioskew = true
+" >> /etc/janus/janus.plugin.streaming.jcfg
+if [[ "$videoport" =~ ^[0-9]{4,5}$ ]]; then
+    echo -n "    video = true
+    videopt = 100
+    videoport = $videoport
+    videortpmap = \"vp8/$videobw\"
+    videoskew = true
+" >> /etc/janus/janus.plugin.streaming.jcfg
+else
+    echo -n "    video = false
+" >> /etc/janus/janus.plugin.streaming.jcfg
+fi
+echo "}" >> /etc/janus/janus.plugin.streaming.jcfg
     echo "
 room-$(( id + 1 )): {
     description = \"$lang\"

@@ -30,6 +30,7 @@ let gMyId = null;
 let gStereo = false;
 let gWebrtcUp = false;
 let gRemoteStream = null;
+let gRemoteStreamV = null;
 let gRemoteRoomStream = null;
 
 window.onload = function () {
@@ -234,14 +235,29 @@ window.onload = function () {
                         // New janus.js callback
                         // We ignore mid in this application as there is only ever one audio track
                         onremotetrack: function(track,mid,on) {
-                            Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
-                            if(gRemoteStream || track.kind !== "audio")
-                                return;
+                            Janus.warn("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
+
+                            if (track.kind == "video") {
+                                // We only have one track in this application
+                                if(!on) {
+                                    gRemoteStreamV = null;
+                                    return;
+                                }
+                                if(!gRemoteStreamV) {
+                                    gRemoteStreamV = new MediaStream();
+                                    gRemoteStreamV.addTrack(track.clone());
+                                    const video = document.getElementById('videoStream');
+                                    Janus.attachMediaStream(video, gRemoteStreamV);
+                                }
+                            }
                             // We only have one track in this application
                             if(!on) {
                                  gRemoteStream = null;
                                  return;
                             }
+                            if(gRemoteStream || track.kind !== "audio")
+                                return;
+
                             gRemoteStream = new MediaStream();
                             gRemoteStream.addTrack(track.clone());
                             const audio = document.getElementById('audioStream');
@@ -250,6 +266,7 @@ window.onload = function () {
                         oncleanup: function() {
                             Janus.debug("Clean up request");
                             gRemoteStream = null;
+                            gRemoteStreamV = null;
                         }
                     });
                 }
