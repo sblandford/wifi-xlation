@@ -6,8 +6,6 @@ Any web browser can be used to send or receive the translation. The UI currently
 
 A QR code can be popped up to share the translation URL around the venue.
 
-Since WebRTC requires SSL to work beyond localhost facilities are provided in the Docker using [acme.sh](https://github.com/acmesh-official/acme.sh) to support [Let's Encrypt ](https://letsencrypt.org/) certificates using TXT DNS record domain verification.
-
 A simple configuration file, languages.conf, contains the names of the language channels and corresponding passwords for the translators.
 
 It is also possible to send audio to a channel using [Opus](https://opus-codec.org/) over RTP, for example, from [ffmpeg](https://ffmpeg.org/). This way, one channel can then be used to relay the on-stage sound to translators in different rooms of the venue.
