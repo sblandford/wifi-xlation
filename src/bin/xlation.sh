@@ -1,50 +1,10 @@
 #!/bin/bash
 RUNNING=true
-ACME_NEWS_DIR="/var/www/html/acme"
-ACME_DIR="/root/.acme.sh"
-SSL_DIR="/etc/ssl/acme"
-
-. "$ACME_DIR/acme.sh.env"
-
-#Check LetsEncrypt every day
-acme_renew () {
-    while [[ $RUNNING ]]; do
-        sleep $(( 24 * 60 * 60 ))
-        "$ACME_DIR/acme.sh" --renew --dns -d "$DOMAIN" \
-            --yes-I-know-dns-manual-mode-enough-go-ahead-please \
-            --server letsencrypt > "$ACME_NEWS_DIR/good.txt" 2>"$ACME_NEWS_DIR/bad.txt"
-    done
-}
+SSL_DIR="/etc/ssl/cert"
 
 param () {
     local key=$1 value=$2
     sed -i -r "s|^(\s*)#?($key\s*=\s*).*|\1\2$value|g;" "$file"
-}
-
-
-# This may seem clunky, and acem.sh does provide command line switches to select different directories,
-# but I found it wasn't working as expected. So symlinks it is then.
-ssl_dir_restore () {
-    # Restore Domain and CA directories if saved
-    if [[ -d "$SSL_DIR/$DOMAIN" ]]; then
-        rm -rf "$ACME_DIR/$DOMAIN"
-        ln -s "$SSL_DIR/$DOMAIN" "$ACME_DIR/$DOMAIN"
-    fi
-    if [[ -d "$SSL_DIR/ca" ]]; then
-        rm -rf "$ACME_DIR/ca"
-        ln -s "$SSL_DIR/ca" "$ACME_DIR/ca"
-    fi
-}
-ssl_dir_save () {
-    # Save any new Domain and CA directories if created
-    if [[ -d "$ACME_DIR/$DOMAIN" ]] && [[ ! -L "$ACME_DIR/$DOMAIN" ]]; then
-        mv -f "$ACME_DIR/$DOMAIN" "$SSL_DIR/$DOMAIN"
-        ln -s "$SSL_DIR/$DOMAIN" "$ACME_DIR/$DOMAIN"
-    fi
-    if [[ -d "$ACME_DIR/ca" ]] && [[ ! -L "$ACME_DIR/ca" ]]; then
-        mv -f "$ACME_DIR/ca" "$SSL_DIR/ca"
-        ln -s "$SSL_DIR/ca" "$ACME_DIR/ca"
-    fi
 }
 
 # Bind to a different IP if specified
@@ -75,46 +35,20 @@ if [[ ${#BIND_IP_AND_PREFIX_LENGTH} -gt 10 ]] && [[ "$BIND_IP_AND_PREFIX_LENGTH"
     fi
 fi
 
-# Fetch/Check SSL cert from Letsencrypt
+# SSL certs
 if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then    
-    # If no certificate and key specified then use LetsEncrypt
-    if [[ ${#SSL_CHAIN} -lt 1 ]] || [[ ${#SSL_KEY} -lt 1 ]]; then
-
-    
-    
-        ssl_dir_restore
-        # Set email address for requests
-        sed -i -r "s/ACCOUNT_EMAIL=.*/ACCOUNT_EMAIL=$EMAIL/" "$ACME_DIR/account.conf"
-        # Try and renew certificate
-        acme_out=$( "$ACME_DIR/acme.sh" --renew --dns -d "$DOMAIN" \
-            --yes-I-know-dns-manual-mode-enough-go-ahead-please \
-            --server letsencrypt 2>"$ACME_NEWS_DIR/bad.txt" | tee "$ACME_NEWS_DIR/good.txt" )
-        # If we don't yet have a certificate then issue one
-        if [[ "$acme_out" =~ (not an issued domain) ]]; then
-            acme_out=$( "$ACME_DIR/acme.sh" --issue --dns -d "$DOMAIN" \
-                --yes-I-know-dns-manual-mode-enough-go-ahead-please \
-                --server letsencrypt 2>"$ACME_NEWS_DIR/bad.txt" | tee "$ACME_NEWS_DIR/good.txt" )
-            # Don't enable SSL until we have our certificate
-            export HTTPS_ENABLE="false"
-            echo "HTTPS disabled until we have an SSL certificate"
-        # If we have a good certificate then enable daily renewal checks
-        elif [[ "$acme_out" =~ (Next renewal time|Cert success) ]]; then
-            acme_renew &
-        else
-            # If all else fails, disable SSL
-            export HTTPS_ENABLE="false"
-            echo "HTTPS disabled due to error"
-        fi
-        ssl_dir_save
-        certs_file="$SSL_DIR/$DOMAIN/fullchain.cer"
-        key_file="$SSL_DIR/$DOMAIN/$DOMAIN.key"
-        
-        cat "$ACME_NEWS_DIR/good.txt"
-        cat "$ACME_NEWS_DIR/bad.txt"
-    else
-        # User-supplied certs
-        certs_file=$SSL_CHAIN
-        key_file=$SSL_KEY
+    # User-supplied certs
+    certs_file=$SSL_CHAIN
+    key_file=$SSL_KEY
+    if [[ ! -e "$certs_file" ]]; then
+        echo "SSL chain not found : $certs_file"
+        HTTPS_ENABLE=false
+    fi
+    if [[ ! -e "$key_file" ]]; then
+        echo "SSL key not found : $key_file"
+        HTTPS_ENABLE=false
+    fi
+    if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
         echo "Using use supplied SSL certificates"
     fi
 fi

@@ -41,11 +41,9 @@ For the full range of options see:
 `./xlationctl.sh --help`
 
 # SSL
-SSL certificates can be obtained from Let's Encrypt or existing certificates can be used. When using Let's Encrypt you will need to have control of the DNS entries for that domain in order to set the required TXT record. The first time that the Docker container is started acme.sh initiates a certificate request. The output from acme.sh will be displayed at `http://localhost/acme`. From here it is possible to find the TXT record that is required. Once the TXT record is set in your DNS entries and has propagated the container may be restarted and, all being well, the certificate will be applied.
 
 It is probably a good idea to store the certificate and related files in a mounted directory so that the Docker container can be deleted and replaced without losing the certificate and related files. The xlationctl.sh script does this when executed with the Let's Encrypt options.
 
-Once a Let's Encrypt certificate is issued it will renew automatically for as long as the container is running. This can be verified by checking `http://localhost/acme`.
 
 ## Further documentation
 

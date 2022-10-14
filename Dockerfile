@@ -1,6 +1,5 @@
 FROM debian:bullseye-slim
 
-ENV EMAIL=my@example.com
 ENV DOMAIN=xlation.example.com
 ENV HTTPS_ENABLE=false
 ENV SSL_CHAIN=
@@ -26,7 +25,6 @@ RUN apt update -y && apt install -y \
     nano \
     && rm -rf /var/lib/apt/lists/*
 RUN cp /usr/share/javascript/janus-gateway/janus.js /var/www/html/js/janus.js
-RUN curl https://get.acme.sh | bash -s email=my@example.com --force
 
 EXPOSE 80/tcp
 EXPOSE 443/tcp

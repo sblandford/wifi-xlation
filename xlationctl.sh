@@ -4,7 +4,7 @@ IMAGE_TAG="simonblandford/wifi-xlation:latest"
 path=$( pwd )
 
 usage () {
-    echo "$( basename "$0" ) <start|stop|status|remove> [--letsencript|acme <domain> <email> | --ssl] [--ip <ip address> | --portshift <integer>] [--dev] [--custom] [--daemon] [-dummy]
+    echo "$( basename "$0" ) <start|stop|status|remove> --ssl [--ip <ip address> | --portshift <integer>] [--dev] [--custom] [--daemon] [-dummy]
         start
             Start a new or existing $DOCKER_NAME docker.
             If starting an existing docker then all further command line options will be ignored.
@@ -14,11 +14,6 @@ usage () {
             Show the status of the $DOCKER_NAME docker.
         remove
             Delete a running or stopped $DOCKER_NAME docker. Required to run under different command line arguments.
-        --letsencript <domain> <email>
-            Invoke Letsencyrpt to create a certificate for <domain> with a contact email <email>.
-            This is invoked for renewal if an existing certificate is found.
-            Once the docker is started, the renewal status can be checked at http(s)://<domain>/acme.
-            If there is no existing certificate then instructions for the required DNS TXT message are displayed.
         --ssl
             Use user-supplied fullchain and key from cust/ssl/fullchain.crt and cust/ssl/private.key.
         --ip
@@ -66,22 +61,6 @@ while [[ $# -gt 0 ]]; do
     switch=$1
     shift
     case $switch in
-        --letsencrypt|--acme)
-            [[ "$options" =~ HTTPS_ENABLE ]] && dupe
-            domain=$1
-            email=$2
-            shift
-            shift
-            if ! [[ "${domain,,}" =~ ^[0-9a-z-]+\.[0-9a-z.-]+$ ]]; then
-                echo "Invalid domain name : $domain"
-                usage
-            fi
-            if ! [[ "${email,,}" =~ ^[0-9a-z.-]+@[0-9a-z.-]+$ ]]; then
-                echo "Invalid email address : $email"
-                usage
-            fi
-            acme=true
-            ;;
         --ip)
             [[ "$options" =~ net=host ]] && dupe
             ippl=$1
@@ -141,20 +120,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# If just one domain exists then re-activate letencrypt automatically
-if [[ ! $domain ]] && [[ ! $email ]] && [[ $( ls -1 cust/ssl | grep -P "^[0-9a-z-]+\.[0-9a-z\.-]+$" | wc -l ) -eq 1 ]]; then
-    domain=$( ls -1 cust/ssl | grep -P "^[0-9a-z-]+\.[0-9a-z\.-]+$" )
-    email=$( grep -Po "(?<=CA_EMAIL=')[^']+" cust/ssl/ca/*/directory/ca.conf | head -n 1)
-    acme=true
-fi
-
-if [[ $acme ]]; then
-    options="$options -e EMAIL=$email "
-    options="$options -e DOMAIN=$domain -e HTTPS_ENABLE=true "
-    mkdir -p cust/ssl
-    options="$options -v $path/cust/ssl:/etc/ssl/acme"
-fi
-
 if [[ $offset ]]; then
     if [[ ! "$options" =~ net=host ]]; then
         echo "Portshift can not be specified with --ip option"
@@ -195,9 +160,6 @@ case "$verb" in
                 mkdir -p "cust/conf"
                 cp "src/conf/languages.conf" "cust/conf/languages.conf"
             fi
-            if [[ $acmetrigger ]]; then
-                echo "Re-using Letsencyrpt for $domain"
-            fi            
             docker run $interactive --name="$DOCKER_NAME" \
                 $options \
                 -t "$IMAGE_TAG"

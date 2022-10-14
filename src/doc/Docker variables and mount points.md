@@ -1,17 +1,12 @@
 # Variables
 
-
-## EMAIL
-#### Default: my@example.com
-The valid contact email required for the Let's Encrypt certificate request.
-
 ## DOMAIN
 #### Default: xlation.example.com
 The domain that will used for the application. This must be a public domain for which you have control of the DNS records. Normally this domain will be over-ridden by a local DNS server on the LAN to access this application. Any public access of this domain could just be a holding page reminding people to connect via WiFi when inside the venue.
 
 ## HTTPS_ENABLE
 #### Default: false
-Enable SSL if possible. This is possible when either valid SSL certificate files are supplied or when Let's Encrypt has supplied the requested certificate files.
+Enable SSL if possible. This is possible when valid SSL certificate files are supplied.
 
 ## SSL_CHAIN
 User supplied SSL certificate chain
@@ -54,5 +49,5 @@ Useful to set true if clients aren't in the same local network
 
 The file that specifies the languages and passwords. It is highly recommended to at least change the passwords from "secret" otherwise, by default, anyone can become an instant translator resulting in chaos.
 
-## /etc/ssl/acme
-This is where the Let's Encrypt certificates are stored. Mounting this directory to the host will prevent the certificates being lost if the container is destroyed.
+## /etc/ssl/cert
+This is where the SSL certificates are stored. Mounting this directory to the host will prevent the certificates being lost if the container is destroyed.
