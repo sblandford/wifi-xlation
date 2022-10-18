@@ -4,6 +4,9 @@ ENV DOMAIN=xlation.example.com
 ENV HTTPS_ENABLE=false
 ENV SSL_CHAIN=
 ENV SSL_KEY=
+ENV AWS_ACCESS_KEY_ID=
+ENV AWS_SECRET_ACCESS_KEY=
+ENV AWS_DEFAULT_REGION=
 ENV ADMIN_PASSWORD=xlationoverlord
 ENV HTTP_STATIC_PORT=80
 ENV HTTPS_STATIC_PORT=443
@@ -23,6 +26,7 @@ RUN apt update -y && apt install -y \
     iproute2 \
     less \
     nano \
+    s3cmd \
     && rm -rf /var/lib/apt/lists/*
 RUN cp /usr/share/javascript/janus-gateway/janus.js /var/www/html/js/janus.js
 

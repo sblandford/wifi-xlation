@@ -1,6 +1,6 @@
 #!/bin/bash
 DOCKER_NAME="wifi-xlation"
-IMAGE_TAG="simonblandford/wifi-xlation:latest"
+IMAGE_TAG="wifi-xlation:latest"
 path=$( pwd )
 
 usage () {
@@ -15,7 +15,13 @@ usage () {
         remove
             Delete a running or stopped $DOCKER_NAME docker. Required to run under different command line arguments.
         --ssl
-            Use user-supplied fullchain and key from cust/ssl/fullchain.crt and cust/ssl/private.key.
+            Use user-supplied fullchain and key from cust/ssl/fullchain.crt and cust/ssl/private.key or
+            cust/ssl/s3.txt with the following lines:
+                s3://<fullchain url>
+                s3://<privkey url>
+                <AWS_ACCESS_KEY>
+                <AWS_SECRET_KEY>
+                <AWS_REGION>
         --ip
             Try to add a virtual IP to the host and listen on that instead of the host IP.
             This is intended for hosts where port 80 and 443 are already occupied and
@@ -95,12 +101,19 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ssl)
             [[ "$options" =~ SSL_CHAIN ]] && dupe
-            if [[ -f cust/ssl/fullchain.crt ]] && [[ -f cust/ssl/private.key ]]; then
-                options="$options SSL_CHAIN=cust/ssl/fullchain.crt "
-                options="$options SSL_KEY=cust/ssl/private.key "
+            if [[ -f cust/ssl/s3.txt ]]; then
+                options="$options -e SSL_CHAIN=$( sed -n "1p" cust/ssl/s3.txt) "
+                options="$options -e SSL_KEY=$( sed -n "2p" cust/ssl/s3.txt) "
+                options="$options -e AWS_ACCESS_KEY_ID=$( sed -n "3p" cust/ssl/s3.txt) "
+                options="$options -e AWS_SECRET_ACCESS_KEY=$( sed -n "4p" cust/ssl/s3.txt) "
+                options="$options -e AWS_DEFAULT_REGION=$( sed -n "5p" cust/ssl/s3.txt) "
+                options="$options -e HTTPS_ENABLE=true "
+            elif [[ -f cust/ssl/fullchain.crt ]] && [[ -f cust/ssl/private.key ]]; then
+                options="$options -e SSL_CHAIN=cust/ssl/fullchain.crt "
+                options="$options -e SSL_KEY=cust/ssl/private.key "
                 options="$options -e HTTPS_ENABLE=true "
             else
-                echo "Unable to find cust/ssl/fullchain.crt and cust/ssl/private.key"
+                echo "Unable to find cust/ssl/fullchain.crt, cust/ssl/private.key or cust/ssl/s3.txt"
                 usage
             fi
             ;;

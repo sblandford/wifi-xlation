@@ -2,6 +2,59 @@
 RUNNING=true
 SSL_DIR="/etc/ssl/cert"
 
+CERTS_FILE="$SSL_DIR/fullchain.pem"
+KEY_FILE="$SSL_DIR/privkey.pem"
+
+ssl_check () {
+    [[ "$1" == "cert" ]] && grep -Fq "BEGIN CERTIFICATE" "$2" && grep -Fq "END CERTIFICATE" "$2" && return 0
+    [[ "$1" == "key" ]] && grep -Fq "BEGIN PRIVATE KEY" "$2" && grep -Fq "END PRIVATE KEY" "$2" && return 0
+    return 1
+}
+
+ssl_copy () {
+    # Note that AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION are set as global
+    # variables that will be picked up by the s3cmd command
+    ssl_changed=false
+    if [[ -e "$SSL_CHAIN" ]]; then
+        cp -f "$SSL_CHAIN" "$CERTS_FILE""_tmp"
+    elif [[ "${SSL_CHAIN,,}" =~ ^s3:// ]]; then
+        s3cmd -qf get "$SSL_CHAIN" "$CERTS_FILE""_tmp"
+    fi
+    if ssl_check "cert" "$CERTS_FILE""_tmp"; then
+        cmp -s "$CERTS_FILE""_tmp" "$CERTS_FILE" || ssl_changed=true
+        mv -f "$CERTS_FILE""_tmp" "$CERTS_FILE"
+    else
+        echo "Invalid certs file : $SSL_CHAIN"
+        HTTPS_ENABLE=false
+    fi
+    if [[ -e "$SSL_KEY" ]]; then
+        cp -f "$SSL_KEY" "$KEY_FILE""_tmp"
+    elif [[ "${SSL_KEY,,}" =~ ^s3:// ]]; then
+        s3cmd -qf get "$SSL_KEY" "$KEY_FILE""_tmp"
+    fi
+    if ssl_check "key" "$KEY_FILE""_tmp"; then
+        cmp -s "$KEY_FILE""_tmp" "$KEY_FILE" || ssl_changed=true
+        mv -f "$KEY_FILE""_tmp" "$KEY_FILE"
+    else
+        echo "Invalid key file : $SSL_KEY"
+        HTTPS_ENABLE=false
+    fi    
+}
+
+
+#Check SSL files for updates approx every day
+ssl_renew () {
+    while [[ $RUNNING ]]; do
+        for (( i = 0; i < ( 24 * 60 * 60 ); i++ )); do
+            sleep 1
+            [[ $RUNNING ]] || return
+        done
+        ssl_copy
+        [[ "$ssl_changed" == "true" ]] && nginx -s reload
+    done
+}
+
+
 param () {
     local key=$1 value=$2
     sed -i -r "s|^(\s*)#?($key\s*=\s*).*|\1\2$value|g;" "$file"
@@ -36,20 +89,13 @@ if [[ ${#BIND_IP_AND_PREFIX_LENGTH} -gt 10 ]] && [[ "$BIND_IP_AND_PREFIX_LENGTH"
 fi
 
 # SSL certs
-if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then    
-    # User-supplied certs
-    certs_file=$SSL_CHAIN
-    key_file=$SSL_KEY
-    if [[ ! -e "$certs_file" ]]; then
-        echo "SSL chain not found : $certs_file"
-        HTTPS_ENABLE=false
-    fi
-    if [[ ! -e "$key_file" ]]; then
-        echo "SSL key not found : $key_file"
-        HTTPS_ENABLE=false
-    fi
+if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
+    ssl_copy
     if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
-        echo "Using use supplied SSL certificates"
+        echo "SSL enabled"
+        ssl_renew &
+    else
+        echo "SSL disabled"
     fi
 fi
 
@@ -109,8 +155,8 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
             proxy_set_header Host \$host;
         }
         
-        ssl_certificate \"$certs_file\";
-        ssl_certificate_key \"$key_file\";
+        ssl_certificate \"$CERTS_FILE\";
+        ssl_certificate_key \"$KEY_FILE\";
         ssl_session_cache shared:SSL:1m;
         ssl_session_timeout  10m;
 }" > /etc/nginx/sites-enabled/default_ssl
