@@ -202,9 +202,9 @@ echo >"/etc/janus/janus.plugin.audiobridge.jcfg"
 IFS=$'\n'
 id=0
 for line in $( grep -P -v "^\s*#" /etc/languages.conf ); do
-    port=$( echo "$line" | cut -d "," -f 1 )
-    lang=$( echo "$line" | cut -d "," -f 2 )
-    pin=$( echo "$line" | cut -d "," -f 3- )
+    port=$( echo "$line" | tr -d "\r" | cut -d "," -f 1 )
+    lang=$( echo "$line" | tr -d "\r" | cut -d "," -f 2 )
+    pin=$( echo "$line" | tr -d "\r" | cut -d "," -f 3- )
     if [[ ${#port} -lt 4 ]] || [[ ${#lang} -lt 1 ]] || [[ ${#pin} -lt 1 ]]; then
         continue
     fi
