@@ -41,6 +41,10 @@ Bind to a different IP to the Docker host. This is useful if the host is already
 
 To use a different IP address this Docker container must be run with --net=host and --cap-add NET_ADMIN options.
 
+## JANUS_DEBUG_LEVEL
+#### Default: 4
+Verbosity of Janus output. 0=none, 7=verbose
+
 ## IGNORE_MDNS
 #### Default: false
 Useful to set true if clients aren't in the same local network

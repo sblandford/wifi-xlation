@@ -11,6 +11,7 @@ ENV ADMIN_PASSWORD=xlationoverlord
 ENV HTTP_STATIC_PORT=80
 ENV HTTPS_STATIC_PORT=443
 ENV BIND_IP_AND_PREFIX_LENGTH=0.0.0.0/24
+ENV JANUS_DEBUG_LEVEL=4
 ENV IGNORE_MDNS=false
 
 COPY src/html/ /var/www/html/
@@ -32,7 +33,7 @@ RUN cp /usr/share/javascript/janus-gateway/janus.js /var/www/html/js/janus.js
 
 EXPOSE 80/tcp
 EXPOSE 443/tcp
-EXPOSE 5000-5050/udp
+EXPOSE 5006-5050/udp
 
 CMD /usr/local/bin/xlation.sh
 

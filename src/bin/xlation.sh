@@ -103,6 +103,7 @@ fi
 # Configure Janus
 file="/etc/janus/janus.jcfg"
 param "admin_secret" "\"$ADMIN_PASSWORD\""
+param "debug_level" "$JANUS_DEBUG_LEVEL"
 param "server_name" "\"$DOMAIN\""
 if [[ $bind_ip ]]; then
     param "nat_1_1_mapping" "\"$bind_ip\""

@@ -28,6 +28,12 @@ usage () {
             a friendly URL without a port number in it are required.
         --portshift <integer>
             If port 80 and 443 are occupied then add an integer e.g. 8000 for ports 8080 and 8443.
+        --rtpforward
+            Forward UDP port range 5006-5050 for external audio input.
+            To test, try running this command on the host...
+            ffmpeg -re -f lavfi -i sine=frequency=216 -c:a libopus -ac 1 -b:a 32k -ar 48000 -f rtp rtp://0.0.0.0:5006
+        --verbosity <integer 0-7>
+            Sets the value of debug_level for Janus. 0 is none, 7 is full.
         --dev
             Development mode.
             Instead of using the HTML files built with the docker mount the src/html directory.
@@ -77,6 +83,7 @@ while [[ $# -gt 0 ]]; do
             fi
             options="$options --net=host --cap-add NET_ADMIN "
             options="$options -e BIND_IP_AND_PREFIX_LENGTH=$ippl "
+            shift
             ;;
         --portshift)
             [[ $offset ]] && dupe
@@ -85,6 +92,21 @@ while [[ $# -gt 0 ]]; do
                 echo "Invalid port offset : $offset"
                 usage
             fi
+            shift
+            ;;
+        --rtpforward)
+            [[ "$options" =~ 5006-5050 ]] && dupe
+            options="$options -p 5006-5050:5006-5050/udp "
+            ;;
+        --verbosity)
+            [[ $verbosity ]] && dupe
+                verbosity=$1
+            if ! [[ "$verbosity" =~ ^[0-9]$ ]] || [[ $verbosity -gt 7 ]]; then
+                echo "Invalid verbosity level : $verbosity"
+                usage
+            fi
+            options="$options -e JANUS_DEBUG_LEVEL=$verbosity"
+            shift
             ;;
         --dev)
             [[ "$options" =~ src/html ]] && dupe
