@@ -9,10 +9,19 @@ The domain that will used for the application. This must be a public domain for 
 Enable SSL if possible. This is possible when valid SSL certificate files are supplied.
 
 ## SSL_CHAIN
-User supplied SSL certificate chain
+User supplied SSL certificate chain. This can be a file on a mounted directory or an S3 location in s3:// format.
 
 ## SSL_KEY
-User supplied SSL certificate key
+User supplied SSL certificate key. This can be a file on a mounted directory or an S3 location in s3:// format.
+
+## AWS_ACCESS_KEY_ID
+Access key used for fetching SSL_CHAIN and SSL_KEY from an s3:// bucket location
+
+## AWS_SECRET_ACCESS_KEY
+Secret key used for fetching SSL_CHAIN and SSL_KEY from an s3:// bucket location
+
+## AWS_DEFAULT_REGION
+Region in which S3 bucket is located
 
 ## ADMIN_PASSWORD
 #### Default: xlationoverlord

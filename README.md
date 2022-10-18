@@ -40,7 +40,7 @@ For the full range of options see:
 
 # SSL
 
-It is probably a good idea to store the certificate and related files in a mounted directory so that the Docker container can be deleted and replaced without losing the certificate and related files. The xlationctl.sh script does this when executed with the Let's Encrypt options.
+The SSL certificates can be supplied from files in a mounted directory or from an AWS S3 path. I have had some success using the [certbot-lambda](https://github.com/kingsoftgames/certbot-lambda) project to keep a current LetsEncrypt certificate on S3.
 
 
 ## Further documentation
