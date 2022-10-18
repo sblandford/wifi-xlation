@@ -1,9 +1,9 @@
 #!/bin/bash
 RUNNING=true
-SSL_DIR="/etc/ssl/cert"
+NGINX_SSL_DIR="/etc/nginx/cert"
 
-CERTS_FILE="$SSL_DIR/fullchain.pem"
-KEY_FILE="$SSL_DIR/privkey.pem"
+CERTS_FILE="$NGINX_SSL_DIR/fullchain.pem"
+KEY_FILE="$NGINX_SSL_DIR/privkey.pem"
 
 ssl_check () {
     [[ "$1" == "cert" ]] && grep -Fq "BEGIN CERTIFICATE" "$2" && grep -Fq "END CERTIFICATE" "$2" && return 0
@@ -15,6 +15,7 @@ ssl_copy () {
     # Note that AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION are set as global
     # variables that will be picked up by the s3cmd command
     ssl_changed=false
+    mkdir -p "$NGINX_SSL_DIR"
     if [[ -e "$SSL_CHAIN" ]]; then
         cp -f "$SSL_CHAIN" "$CERTS_FILE""_tmp"
     elif [[ "${SSL_CHAIN,,}" =~ ^s3:// ]]; then

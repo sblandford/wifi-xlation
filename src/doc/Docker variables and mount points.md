@@ -58,5 +58,3 @@ Useful to set true if clients aren't in the same local network
 
 The file that specifies the languages and passwords. It is highly recommended to at least change the passwords from "secret" otherwise, by default, anyone can become an instant translator resulting in chaos.
 
-## /etc/ssl/cert
-This is where the SSL certificates are stored. Mounting this directory to the host will prevent the certificates being lost if the container is destroyed.
