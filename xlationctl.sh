@@ -199,7 +199,7 @@ esac
 exit
 
 
-#ffmpeg -re -f lavfi -i sine=frequency=216 -c:a libopus -ac 1 -b:a 32k -ar 48000 -f rtp rtp://0.0.0.0:5000
+#ffmpeg -re -f lavfi -i sine=frequency=216 -c:a libopus -ac 1 -b:a 32k -ar 48000 -f rtp rtp://0.0.0.0:5006
 
 # Admin interface query of listeners and translators
 # sess=$( curl --silent http://localhost:7088/admin --data '{"janus":"list_sessions","transaction":"'$RANDOM'","admin_secret":"xlationoverlord"}' -H "Content-Type: application/json" | grep -Po "[0-9]{8,}" )

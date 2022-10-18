@@ -51,7 +51,7 @@ ssl_renew () {
             [[ $RUNNING ]] || return
         done
         ssl_copy
-        [[ "$ssl_changed" == "true" ]] && nginx -s reload
+        [[ "$ssl_changed" == "true" ]] && echo "SSL certs updated so reloading Nginx" && nginx -s reload
     done
 }
 
