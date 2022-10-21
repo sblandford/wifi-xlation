@@ -42,6 +42,8 @@ usage () {
         --custom
             Use a custom language file cust/conf/languages.conf instead of the default internal languages.conf.
             This enables the list of languages and language passwords to be set up.
+        --domain
+            Hostname as it will appear in a Janus info request
         --daemon
             Don't attach the terminal to the docker. It will run in the background
         --dummy
@@ -138,6 +140,10 @@ while [[ $# -gt 0 ]]; do
                 echo "Unable to find cust/ssl/fullchain.crt, cust/ssl/private.key or cust/ssl/s3.txt"
                 usage
             fi
+            ;;
+        --domain)
+            options="$options -e DOMAIN=$1 "
+            shift
             ;;
         --daemon)
             interactive="-d"
