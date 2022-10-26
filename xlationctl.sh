@@ -22,10 +22,10 @@ usage () {
                 <AWS_ACCESS_KEY>
                 <AWS_SECRET_KEY>
                 <AWS_REGION>
-        --ip
-            Try to add a virtual IP to the host and listen on that instead of the host IP.
-            This is intended for hosts where port 80 and 443 are already occupied and
-            a friendly URL without a port number in it are required.
+        --host
+            Use host network
+        --macvlan <macvlan network name> <ip address>
+            Use a macvlan network that has already been defined with a specific static IP address
         --portshift <integer>
             If port 80 and 443 are occupied then add an integer e.g. 8000 for ports 8080 and 8443.
         --rtpforward
@@ -61,6 +61,10 @@ printcommand () {
     echo "docker run $interactive --name=\"$DOCKER_NAME\" $options -t \"$IMAGE_TAG\""
 }
 
+check_ip () {
+    [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}\/[0-9]{1,2}$ ]]
+}
+
 if [[ "$path" =~ " " ]]; then
     echo "Path can not have spaces in it : $path"
     exit
@@ -75,17 +79,29 @@ while [[ $# -gt 0 ]]; do
     switch=$1
     shift
     case $switch in
-        --ip)
+        --host)
             [[ "$options" =~ net=host ]] && dupe
-            ippl=$1
-            shift
-            if ! [[ "$ippl" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}\/[0-9]{1,2}$ ]]; then
-                echo "Invalid IPv4 address : $ippl"
+            if [[ "$options" =~ 5006-5050 ]]; then
+                echo "--rtpforward is redundant in --host mode"
                 usage
             fi
-            options="$options --net=host --cap-add NET_ADMIN "
-            options="$options -e BIND_IP_AND_PREFIX_LENGTH=$ippl "
+            options="$options --net=host "
+            ;;
+        --macvlan)
+            [[ "$options" =~ net=macvlan ]] && dupe
+            macvlan_name=$1
+            if ! docker network ls | grep -F macvlan | grep -F "$macvlan_name"; then
+                echo "Macvlan name not valid"
+                usage
+            fi
             shift
+            macvlan_ip=$1
+            if ! check_ip "$macvlan_ip"; then
+                echo "Macvlan IP not valid"
+                usage
+            fi
+            shift
+            options="$options --net=$macvlan_name --ip=$macvlan_ip "
             ;;
         --portshift)
             [[ $offset ]] && dupe
@@ -98,6 +114,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --rtpforward)
             [[ "$options" =~ 5006-5050 ]] && dupe
+            if [[ "$options" =~ net=host ]]; then
+                echo "--rtpforward is redundant in --host mode"
+            fi
             options="$options -p 5006-5050:5006-5050/udp "
             ;;
         --verbosity)
