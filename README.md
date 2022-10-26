@@ -42,6 +42,9 @@ For the full range of options see:
 
 The SSL certificates can be supplied from files in a mounted directory or from an AWS S3 path. I have had some success using the [certbot-lambda](https://github.com/kingsoftgames/certbot-lambda) project to keep a current LetsEncrypt certificate on S3.
 
+# Janus/Docker issues
+
+To best results either run this docker with network=host or using macvlan. This useful video explains the issues : [Alessandro Amirante - Janus &Docker: friends or foe?](https://youtu.be/mrV2BQ95UFY)
 
 ## Further documentation
 
