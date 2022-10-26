@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:sid-slim
 
 ENV DOMAIN=xlation.example.com
 ENV HTTPS_ENABLE=false
@@ -10,7 +10,6 @@ ENV AWS_DEFAULT_REGION=
 ENV ADMIN_PASSWORD=xlationoverlord
 ENV HTTP_STATIC_PORT=80
 ENV HTTPS_STATIC_PORT=443
-ENV BIND_IP_AND_PREFIX_LENGTH=0.0.0.0/24
 ENV JANUS_DEBUG_LEVEL=4
 ENV IGNORE_MDNS=false
 
@@ -18,7 +17,6 @@ COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf
 COPY src/bin/xlation.sh /usr/local/bin/xlation.sh
 RUN chmod 0755 /usr/local/bin/xlation.sh
-RUN echo "deb http://deb.debian.org/debian bullseye-backports main" >/etc/apt/sources.list.d/bullseye-backports.list
 RUN apt update -y && apt install -y \
     janus \
     libjs-janus-gateway \

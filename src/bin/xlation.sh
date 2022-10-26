@@ -61,34 +61,6 @@ param () {
     sed -i -r "s|^(\s*)#?($key\s*=\s*).*|\1\2$value|g;" "$file"
 }
 
-# Bind to a different IP if specified
-if [[ ${#BIND_IP_AND_PREFIX_LENGTH} -gt 10 ]] && [[ "$BIND_IP_AND_PREFIX_LENGTH" != "0.0.0.0/24" ]] && [[ "$BIND_IP_AND_PREFIX_LENGTH" =~ / ]]; then
-    ifs=$( ip link sh | grep -P "^[0-9]+" | awk '{print $2}' )
-    # A real host would have more than just two interfaces if running docker
-    if [[ $( echo "$ifs" | wc -l ) -le 2 ]]; then
-        echo "We can only bind to a different IP with network in \"host\" mode"
-    else
-        host_ip=$( ip route get 1.2.3.4 | awk '{print $7}' )
-        host_dev=$( ip route get 1.2.3.4 | awk '{print $5}' )
-        echo "Host IP : $host_ip"
-        echo "Host Dev : $host_dev"
-        if ! ip ad sh $host_dev | grep -qF "$BIND_IP_AND_PREFIX_LENGTH"; then
-            echo "Adding IP to host : $BIND_IP_AND_PREFIX_LENGTH"
-            if ip ad ad "$BIND_IP_AND_PREFIX_LENGTH" dev "$host_dev"; then
-                bind_ip=$( echo "$BIND_IP_AND_PREFIX_LENGTH" | grep -Po "^[^/]+" )
-                nginx_bind_ip="$bind_ip:"
-            else
-                echo "Adding IP failed : $BIND_IP_AND_PREFIX_LENGTH"
-                echo "Container must be run with NET_ADMIN capability"
-            fi
-        else
-            echo "Binding to specific IP : $BIND_IP_AND_PREFIX_LENGTH"
-            bind_ip=$( echo "$BIND_IP_AND_PREFIX_LENGTH" | grep -Po "^[^/]+" )
-            nginx_bind_ip="$bind_ip:"
-        fi
-    fi
-fi
-
 # SSL certs
 if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
     ssl_copy

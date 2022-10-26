@@ -35,12 +35,6 @@ Web server http listening port
 #### Default: 443
 Web server https listening port
 
-## BIND_IP_AND_PREFIX_LENGTH
-#### Default: 0.0.0.0/24
-Bind to a different IP to the Docker host. This is useful if the host is already listening on port 80/443 and you would like to still use these default ports for the application. One scenario where this may apply is when running this Docker container on a NAS that has an admin interface on the standard ports. This is only possible if the host can be set up so that the services it runs on ports 80 and 443 can also be bound to just one IP address.
-
-To use a different IP address this Docker container must be run with --net=host and --cap-add NET_ADMIN options.
-
 ## JANUS_DEBUG_LEVEL
 #### Default: 4
 Verbosity of Janus output. 0=none, 7=verbose
