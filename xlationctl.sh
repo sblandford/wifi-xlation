@@ -26,6 +26,8 @@ usage () {
             Use host network
         --macvlan <macvlan network name> <ip address>
             Use a macvlan network that has already been defined with a specific static IP address
+        --bindip4
+            Bind Nginx to a specific IP
         --portshift <integer>
             If port 80 and 443 are occupied then add an integer e.g. 8000 for ports 8080 and 8443.
         --rtpforward
@@ -48,6 +50,8 @@ usage () {
             Don't attach the terminal to the docker. It will run in the background
         --dummy
             Don't actually run the docker but just print out the command that would run the docker.
+        --ignoremdns
+            Ignore MDNS. Useful if not on LAN.
 "
     exit
 }
@@ -102,6 +106,12 @@ while [[ $# -gt 0 ]]; do
             fi
             shift
             options="$options --net=$macvlan_name --ip=$macvlan_ip "
+            ;;
+        --bindip4)
+            [[ "$options" =~ BIND_IP4 ]] && dupe
+            bind_ip4=$1
+            options="$options -e BIND_IP4=$bind_ip4 "
+            shift
             ;;
         --portshift)
             [[ $offset ]] && dupe
@@ -163,6 +173,9 @@ while [[ $# -gt 0 ]]; do
         --domain)
             options="$options -e DOMAIN=$1 "
             shift
+            ;;
+        --ignoremdns)
+            options="$options -e IGNORE_MDNS=true "
             ;;
         --daemon)
             interactive="-d"

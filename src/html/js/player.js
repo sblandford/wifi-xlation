@@ -568,10 +568,10 @@ function loadSendRoom () {
 
 function startPlay() {
     loadAudio();
-    const vidPlayer = document.getElementById('playing');
+    /* const vidPlayer = document.getElementById('playing');
     if (vidPlayer) {
         vidPlayer.play();
-    }
+    } */
     gPlaying = true;
     updateDisplay();
 }

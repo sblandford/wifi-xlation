@@ -61,6 +61,10 @@ param () {
     sed -i -r "s|^(\s*)#?($key\s*=\s*).*|\1\2$value|g;" "$file"
 }
 
+if [[ ${#BIND_IP4} -gt 4 ]]; then
+    nginx_bind_ip="$BIND_IP4:"
+fi
+
 # SSL certs
 if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
     ssl_copy

@@ -35,6 +35,10 @@ Web server http listening port
 #### Default: 443
 Web server https listening port
 
+## BIND_IP4
+#### Default: 0.0.0.0
+IP for Nginx to bind to
+
 ## JANUS_DEBUG_LEVEL
 #### Default: 4
 Verbosity of Janus output. 0=none, 7=verbose
