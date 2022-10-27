@@ -46,7 +46,7 @@ For some test tones just use the bash script provided:
 
 To stop them:
 
-`./test-tones.sh start`
+`./test-tones.sh stop`
 
 # SSL
 
