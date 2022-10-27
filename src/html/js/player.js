@@ -150,15 +150,6 @@ window.onload = function () {
                                 gSendMixerHandle.handleRemoteJsep({ jsep: jsep });
                             }                            
                         },
-                        // Old janus.js callback
-                        onremotestream: function(stream) {
-                            Janus.debug("Got a remote room stream...");
-                            Janus.debug(stream);
-                            const audio = document.getElementById('audioRoom');
-                            Janus.attachMediaStream(audio, stream);
-                                
-                        },
-                        // New janus.js callback
                         // We ignore mid in this application as there is only ever one audio track
                         onremotetrack: function(track,mid,on) {
                             Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);                           
@@ -223,15 +214,6 @@ window.onload = function () {
                                 });
                             }
                         },
-                        // Old janus.js callback
-                        onremotestream: function(stream) {
-                                Janus.debug("Got a remote stream...");
-                                Janus.debug(stream);
-                                const audio = document.getElementById('audioStream');
-                                Janus.attachMediaStream(audio, stream);
-                                
-                        },
-                        // New janus.js callback
                         // We ignore mid in this application as there is only ever one audio track
                         onremotetrack: function(track,mid,on) {
                             Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
