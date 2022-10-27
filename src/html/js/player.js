@@ -1,5 +1,5 @@
 // Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
-const gDebugLevels = ['warn', 'error'];
+const gDebugLevels = ['log','warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
 const gServer = "janus";
@@ -22,6 +22,7 @@ let gPlaying = false;
 let gSending = false;
 let gPasswordsTx = {};
 
+let gIceServers = null;
 let gJanus = null;
 let gJanusSend= null;
 let gStreamingHandle = null;
@@ -57,6 +58,7 @@ window.onload = function () {
             }
             gJanusSend = new Janus({
                 server: gServer,
+                iceServers: gIceServers,
                 success: function() {
                     gJanusSend.attach({
                         // Audiobridge is used for the translator to uplink the audio.
@@ -98,7 +100,11 @@ window.onload = function () {
                                         // Publish our stream
                                         gSendMixerHandle.createOffer(
                                         {
-                                            media: { video: false },    // This is an audio only room
+                                            track: [
+                                                        { type: 'audio', recv: true },
+                                                        { type: 'video', recv: false },
+                                                        { type: 'data', recv: false}
+                                                    ],                                            
                                             customizeSdp: function(jsep) {
                                                 if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
                                                     // Make sure that our offer contains gStereo too
@@ -179,11 +185,22 @@ window.onload = function () {
             });
             gJanus = new Janus({
                 server: gServer,
+                iceServers: gIceServers,
                 success: function() {
                     gJanus.attach({
                         // Receive a translation channel stream either relayed from the corresponding translator room or received on Janus via RTP
                         plugin: "janus.plugin.streaming",
                         gOpaqueId: gOpaqueId,
+                        iceState: function(state) {
+                            Janus.log("ICE state changed to " + state);
+                        },
+                        webrtcState: function(on) {
+                            Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
+                        },
+                        slowLink: function(uplink, lost, mid) {
+                            Janus.warn("Janus reports problems " + (uplink ? "sending" : "receiving") +
+                                " packets on mid " + mid + " (" + lost + " lost packets)");
+                        },                        
                         success: function(pluginHandle) {
                             gStreamingHandle = pluginHandle;
                             Janus.log("Plugin attached! (" + gStreamingHandle.getPlugin() + ", id=" + gStreamingHandle.getId() + ")");
@@ -200,8 +217,12 @@ window.onload = function () {
                                 Janus.debug(jsep);
                                 gStreamingHandle.createAnswer({
                                     jsep: jsep,
-                                    // We want recvonly audio/video and, if negotiated, datachannels
-                                    media: { audioSend: false, videoSend: false, data: true },
+                                    // We want recvonly audio and, if negotiated, datachannels
+                                    track: [
+                                                { type: 'audio', recv: true },
+                                                { type: 'video', recv: false },
+                                                { type: 'data', recv: true}
+                                            ],
                                     success: function(jsep) {
                                         Janus.debug("Got SDP!");
                                         Janus.debug(jsep);
@@ -324,14 +345,14 @@ function pollStatus () {
                     alert("Got no response to our query for available RX streams");
             } else {
                 const list = result.list;
-                Janus.log("Got list of streams");                
+                Janus.debug("Got list of streams");                
                 gSendMixerHandle.send({"message": body, success: function(result) {
                     let listTx = false;
                     if(result === null || result === undefined) {
                         alert("Got no response to our query for available TX rooms");
                     } else {
                         listTx = result.list;
-                        Janus.log("Got list of rooms");
+                        Janus.debug("Got list of rooms");
                     }
                     let newStatus = [];
                     for(let i=0; i < list.length; i++) {
@@ -340,7 +361,7 @@ function pollStatus () {
                             for (let j = 0; j < listTx.length; j++) {
                                 const mpTx = listTx[j];
                                 if (mpTx.room == mp.id) {
-                                    Janus.log("Got match");
+                                    Janus.debug("Got match");
                                     validTx = true;
                                     txParticipants = mpTx.num_participants;
                                     freeTx = (txParticipants <= ((gSendIntention)?1:0));
@@ -550,10 +571,10 @@ function loadSendRoom () {
 
 function startPlay() {
     loadAudio();
-    /* const vidPlayer = document.getElementById('playing');
+    const vidPlayer = document.getElementById('playing');
     if (vidPlayer) {
         vidPlayer.play();
-    } */
+    }
     gPlaying = true;
     updateDisplay();
 }

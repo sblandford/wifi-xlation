@@ -38,6 +38,16 @@ For the full range of options see:
 
 `./xlationctl.sh --help`
 
+# Test audio
+
+For some test tones just use the bash script provided:
+
+`./test-tones.sh start`
+
+To stop them:
+
+`./test-tones.sh start`
+
 # SSL
 
 The SSL certificates can be supplied from files in a mounted directory or from an AWS S3 path. I have had some success using the [certbot-lambda](https://github.com/kingsoftgames/certbot-lambda) project to keep a current LetsEncrypt certificate on S3.

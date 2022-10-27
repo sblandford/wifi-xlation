@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MAX_CHANNELS=2
+MAX_CHANNELS=4
 
 start_all () {
   for (( i=0; i < MAX_CHANNELS; i++ )); do
