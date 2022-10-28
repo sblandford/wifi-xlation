@@ -87,10 +87,9 @@ window.onload = function () {
                                         // Publish our stream
                                         gSendMixerHandle.createOffer(
                                         {
-                                            // "media" is deprecated in favour of "track" however right now track sends a corrupt SDP
-                                            // resulting in a "Missing mandatory lines (o=, s= or m=)" error
                                             media: { video: false },    // This is an audio only room
-                                            /* track: [
+                                            /* track will replace media in a future release
+                                            track: [
                                                 { type: 'audio', capture: true, recv: true },
                                                 { type: 'video', capture: false, recv: false },
                                                 { type: 'data' }
@@ -213,11 +212,12 @@ window.onload = function () {
                                     jsep: jsep,
                                     // We want recvonly audio and, if negotiated, datachannels
                                     // For iOS we have to request audio capture for playback to work
-                                    track: [
+                                    media: { video: false },    // This is an audio only stream
+                                    /* track: [
                                                 { type: 'audio', capture: ios, recv: true },
                                                 { type: 'video', capture: false, recv: false },
                                                 { type: 'data' }
-                                            ],
+                                            ], */
                                     success: function(jsep) {
                                         Janus.debug("Got SDP!");
                                         Janus.debug(jsep);
