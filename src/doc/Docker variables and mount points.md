@@ -47,6 +47,14 @@ Verbosity of Janus output. 0=none, 7=verbose
 #### Default: false
 Useful to set true if clients aren't in the same local network
 
+## STUN_SERVER
+#### Default: stun.l.google.com
+Stun server hostname
+
+## STUN_PORT
+#### Default: 19302
+Stun server port
+
 # Useful mount points
 ## /etc/languages.conf
 #### Default:  
