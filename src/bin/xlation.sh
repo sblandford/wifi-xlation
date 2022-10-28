@@ -86,6 +86,11 @@ if [[ $bind_ip ]]; then
     param "keep_private_host" "false"
 fi
 param "ignore_mdns" "$IGNORE_MDNS"
+if [[ ${#STUN_SERVER} -gt 0 ]] && [[ ${#STUN_PORT} -gt 0 ]]; then
+    param "stun_server" "\"$STUN_SERVER\""
+    param "stun_port" "\"$STUN_PORT\""
+fi
+
 
 file="/etc/janus/janus.transport.http.jcfg"
 param "ip" "\"127.0.0.1\""

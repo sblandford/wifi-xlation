@@ -1,5 +1,5 @@
 // Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
-const gDebugLevels = ['log','warn', 'error'];
+const gDebugLevels = ['warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
 const gServer = "janus";
@@ -22,7 +22,8 @@ let gPlaying = false;
 let gSending = false;
 let gPasswordsTx = {};
 
-let gIceServers = null;
+let gIceServers = [{urls: "stun:stun.l.google.com:19302"}];
+//let gIceServers = null;
 let gJanus = null;
 let gJanusSend= null;
 let gStreamingHandle = null;
@@ -34,20 +35,6 @@ let gRemoteStream = null;
 let gRemoteRoomStream = null;
 
 window.onload = function () {
-    
-    if (!localStorage.channel) {
-        localStorage.channel = "english";
-    }
-    if (!localStorage.channelTx) {
-        localStorage.channelTx = "english";
-    }
-    if (localStorage.passwordsTx) {
-        gPasswordsTx = JSON.parse(localStorage.passwordsTx);
-    }
-    if (!gPasswordsTx[localStorage.channelTx]) {
-        gPasswordsTx[localStorage.channelTx] = gDefaultPassword;
-        localStorage.passwordsTx = JSON.stringify(gPasswordsTx);
-    }
 
     Janus.init({
         debug: gDebugLevels,
@@ -100,11 +87,14 @@ window.onload = function () {
                                         // Publish our stream
                                         gSendMixerHandle.createOffer(
                                         {
-                                            track: [
-                                                        { type: 'audio', recv: true },
-                                                        { type: 'video', recv: false },
-                                                        { type: 'data', recv: false}
-                                                    ],                                            
+                                            // "media" is deprecated in favour of "track" however right now track sends a corrupt SDP
+                                            // resulting in a "Missing mandatory lines (o=, s= or m=)" error
+                                            media: { video: false },    // This is an audio only room
+                                            /* track: [
+                                                { type: 'audio', capture: true, recv: true },
+                                                { type: 'video', capture: false, recv: false },
+                                                { type: 'data' }
+                                            ], */
                                             customizeSdp: function(jsep) {
                                                 if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
                                                     // Make sure that our offer contains gStereo too
@@ -215,13 +205,18 @@ window.onload = function () {
                             if(jsep !== undefined && jsep !== null) {
                                 Janus.debug("Handling SDP as well...");
                                 Janus.debug(jsep);
+                                const ios = iOSCheck();
+                                if (ios) {
+                                    Janus.debug("IOS device so will be requesting audio capture for audio playback to work");
+                                }
                                 gStreamingHandle.createAnswer({
                                     jsep: jsep,
                                     // We want recvonly audio and, if negotiated, datachannels
+                                    // For iOS we have to request audio capture for playback to work
                                     track: [
-                                                { type: 'audio', recv: true },
-                                                { type: 'video', recv: false },
-                                                { type: 'data', recv: true}
+                                                { type: 'audio', capture: ios, recv: true },
+                                                { type: 'video', capture: false, recv: false },
+                                                { type: 'data' }
                                             ],
                                     success: function(jsep) {
                                         Janus.debug("Got SDP!");
@@ -313,6 +308,20 @@ function mobileAndTabletcheck () {
     return gMobileAndTabletState;
 }
 
+// From https://stackoverflow.com/questions/9038625/detect-if-device-is-ios
+function iOSCheck () {
+  return [
+    'iPad Simulator',
+    'iPhone Simulator',
+    'iPod Simulator',
+    'iPad',
+    'iPhone',
+    'iPod'
+  ].includes(navigator.platform)
+  // iPad on iOS 13 detection
+  || (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+}
+
 function showQr() {
     let boxWidth, boxHeight;
     const boxDiv = document.getElementById("qrBox");
@@ -334,6 +343,22 @@ function showQr() {
         }
     }
     boxDiv.classList.toggle("qrShow");
+}
+
+function initaliseLocalStorageIfRequired(name) {
+    if (!localStorage.channel) {
+        localStorage.channel = name;
+    }
+    if (!localStorage.channelTx) {
+        localStorage.channelTx = name;
+    }
+    if (localStorage.passwordsTx) {
+        gPasswordsTx = JSON.parse(localStorage.passwordsTx);
+    }
+    if (!gPasswordsTx[localStorage.channelTx]) {
+        gPasswordsTx[localStorage.channelTx] = gDefaultPassword;
+        localStorage.passwordsTx = JSON.stringify(gPasswordsTx);
+    }
 }
 
 //Poll status every two seconds
@@ -386,6 +411,9 @@ function pollStatus () {
                     if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
                         gStatus = JSON.parse(JSON.stringify(newStatus));
                         gStatusUpdate = true;
+                            if (gStatus.length > 0) {
+                                initaliseLocalStorageIfRequired(gStatus[0].name);
+                            }
                         updateDisplay();
                     }                    
                 }});
@@ -431,8 +459,8 @@ function updateDisplay() {
         }
         if (gStatus[channel].hasOwnProperty('validTx')) {
             validTx = gStatus[channel].validTx;
-        }  
-        
+        }
+
         if (status) {
             listHtml += "<a href=\"#\"" +
             " class=\"chNameNormal\"" +

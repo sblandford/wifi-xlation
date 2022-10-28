@@ -1,4 +1,4 @@
-FROM debian:sid-slim
+FROM ubuntu:kinetic
 
 ENV DOMAIN=xlation.example.com
 ENV HTTPS_ENABLE=false
@@ -13,6 +13,8 @@ ENV HTTPS_STATIC_PORT=443
 ENV BIND_IP4=0.0.0.0
 ENV JANUS_DEBUG_LEVEL=4
 ENV IGNORE_MDNS=false
+ENV STUN_SERVER=stun.l.google.com
+ENV STUN_PORT=19302
 
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf
