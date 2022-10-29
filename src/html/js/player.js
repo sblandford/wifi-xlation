@@ -1,5 +1,5 @@
 // Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
-const gDebugLevels = ['warn', 'error'];
+const gDebugLevels = ['trace', 'debug', 'vdebug', 'log', 'warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
 const gServer = "janus";
@@ -87,7 +87,7 @@ window.onload = function () {
                                         // Publish our stream
                                         gSendMixerHandle.createOffer(
                                         {
-                                            media: { video: false },    // This is an audio only room
+                                            media: { video: false, audioSend: true },    // This is an audio only room
                                             /* track will replace media in a future release
                                             track: [
                                                 { type: 'audio', capture: true, recv: true },
@@ -212,8 +212,9 @@ window.onload = function () {
                                     jsep: jsep,
                                     // We want recvonly audio and, if negotiated, datachannels
                                     // For iOS we have to request audio capture for playback to work
-                                    media: { video: false },    // This is an audio only stream
-                                    /* track: [
+                                    media: { video: false, audioSend: ios },    // This is an audio receive-only stream, except for IOS bug workaround
+                                    /* track will replace media in a future release
+                                    track: [
                                                 { type: 'audio', capture: ios, recv: true },
                                                 { type: 'video', capture: false, recv: false },
                                                 { type: 'data' }
