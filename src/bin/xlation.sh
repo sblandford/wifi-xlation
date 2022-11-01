@@ -99,6 +99,7 @@ param "admin_http" "true"
 param "admin_ip" "\"127.0.0.1\""
 param "admin_interface" "\"lo\""
 param "enforce_cors" "false"
+param "mhd_connection_limit" "$MAX_HTTP_CONNS"
 
 
 if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
