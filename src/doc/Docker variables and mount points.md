@@ -55,6 +55,10 @@ Stun server hostname
 #### Default: 19302
 Stun server port
 
+## MAX_HTTP_CONNS
+#### Default: 32768
+Open connections limit in libmicrohttpd used by janus.transport.http
+
 # Useful mount points
 ## /etc/languages.conf
 #### Default:  

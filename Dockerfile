@@ -15,7 +15,7 @@ ENV JANUS_DEBUG_LEVEL=4
 ENV IGNORE_MDNS=false
 ENV STUN_SERVER=stun.l.google.com
 ENV STUN_PORT=19302
-ENV MAX_HTTP_CONNS=1020
+ENV MAX_HTTP_CONNS=32768
 
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf

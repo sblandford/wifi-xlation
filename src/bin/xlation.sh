@@ -101,6 +101,88 @@ param "admin_interface" "\"lo\""
 param "enforce_cors" "false"
 param "mhd_connection_limit" "$MAX_HTTP_CONNS"
 
+# Configure NGinx
+echo "user www-data;
+
+# Enhancements based on https://gist.github.com/denji/8359866
+
+# you must set worker processes based on your CPU cores, nginx does not benefit from setting more than that
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+# number of file descriptors used for nginx
+# the limit for the maximum FDs on the server is usually set by the OS.
+# if you don't set FD's then OS settings will be used which is by default 2000
+worker_rlimit_nofile 100000;
+
+# only log critical errors
+error_log /var/log/nginx/error.log crit;
+
+events {
+        # determines how much clients will be served per worker
+        # max clients = worker_connections * worker_processes
+        # max clients is also limited by the number of socket connections available on the system (~64k)
+        worker_connections 4000;
+
+        # optimized to serve many clients with each thread, essential for linux
+        use epoll;
+        
+        # accept as many connections as possible, may flood worker connections if set too low
+        multi_accept on;
+}
+
+http {
+
+        ##
+        # Basic Settings
+        ##
+
+        sendfile on;
+        tcp_nopush on;
+        types_hash_max_size 2048;
+        # server_tokens off;
+
+        # server_names_hash_bucket_size 64;
+        # server_name_in_redirect off;
+
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        ##
+        # SSL Settings
+        ##
+
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3; # Dropping SSLv3, ref: POODLE
+        ssl_prefer_server_ciphers on;
+
+        ##
+        # Logging Settings
+        ##
+
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log;
+
+        ##
+        # Gzip Settings
+        ##
+
+        gzip on;
+
+        # gzip_vary on;
+        # gzip_proxied any;
+        # gzip_comp_level 6;
+        # gzip_buffers 16 8k;
+        # gzip_http_version 1.1;
+        # gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+        ##
+        # Virtual Host Configs
+        ##
+
+        include /etc/nginx/conf.d/*.conf;
+        include /etc/nginx/sites-enabled/*;
+}" >/etc/nginx/nginx.conf
 
 if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
     echo "server {
@@ -126,6 +208,40 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
 
         server_name _;
 
+        # Settings based on https://gist.github.com/denji/8359866
+        open_file_cache max=200000 inactive=20s;
+        open_file_cache_valid 30s;
+        open_file_cache_min_uses 2;
+        open_file_cache_errors on;
+
+        # to boost I/O on HDD we can disable access logs
+        access_log off;
+
+        # copies data between one FD and other from within the kernel
+        # faster than read() + write()
+        sendfile on;
+
+        # send headers in one piece, it is better than sending them one by one
+        tcp_nopush on;
+
+        # don't buffer data sent, good for small data bursts in real time
+        tcp_nodelay on;        
+        
+        # allow the server to close connection on non responding client, this will free up memory
+        reset_timedout_connection on;
+
+        # request timed out -- default 60
+        client_body_timeout 10;
+
+        # if client stop responding, free up memory -- default 60
+        send_timeout 2;
+
+        # server will close connection after this time -- default 75
+        keepalive_timeout 30;
+
+        # number of requests client can make over keep-alive -- for testing environment
+        keepalive_requests 100000;
+    
         location / {
                 try_files \$uri \$uri/ =404;
         }
@@ -154,6 +270,10 @@ else
         index index.html;
         
         server_name _;
+
+        # No 'performance boosting' settings here since non-https mode
+        # can only be for testing due to WebRTC SSL requirements
+        access_log off;
         
         location / {
                 try_files \$uri \$uri/ =404;
