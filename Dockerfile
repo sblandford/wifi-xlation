@@ -33,6 +33,7 @@ RUN apt update -y && apt install -y \
     s3cmd \
     && rm -rf /var/lib/apt/lists/*
 RUN cp /usr/share/javascript/janus-gateway/janus.js /var/www/html/js/janus.js
+RUN if [ -f /var/www/html/js/settings.js ];then /bin/rm -f /var/www/html/js/settings.js;fi
 
 EXPOSE 80/tcp
 EXPOSE 443/tcp
