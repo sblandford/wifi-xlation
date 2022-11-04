@@ -244,9 +244,10 @@ window.onload = function () {
                                  gRemoteStream = null;
                                  return;
                             }
+                            const audio = document.getElementById('audioStream');
+                            audio.volume = 0;
                             gRemoteStream = new MediaStream([track]);
                             gRemoteStream.addTrack(track.clone());
-                            const audio = document.getElementById('audioStream');
                             Janus.attachMediaStream(audio, gRemoteStream);
                             audio.play();
                             audio.volume = 1;
