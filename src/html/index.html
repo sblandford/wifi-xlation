@@ -4,21 +4,21 @@
         <link rel="icon" type="image/x-icon" href="img/headphones.png">
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        
+
         <meta http-equiv="cache-control" content="max-age=0" />
         <meta http-equiv="cache-control" content="no-cache" />
         <meta http-equiv="expires" content="0" />
         <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
-        <meta http-equiv="pragma" content="no-cache" />        
-        
+        <meta http-equiv="pragma" content="no-cache" />
+
         <title>Translation Web Client</title>
         <link rel="stylesheet" type="text/css" href="css/player.css?v=1">
-        
+
 
         <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/webrtc-adapter/8.1.1/adapter.min.js" ></script>
         <script type="text/javascript" src="js/janus.js?v1" ></script>
         <script src="js/lang.js?v1"></script>
-        <script src="js/qrcode.js?v1"></script>        
+        <script src="js/qrcode.js?v1"></script>
         <script src="js/player.js?v2"></script>
     </head>
     <body class="body">
@@ -51,7 +51,7 @@
                                             <source src="img/green.m4v" type="video/mp4">
                                         </video>
                                     </div>
-                                </td></tr>                
+                                </td></tr>
                                 <tr class="rx"><td class="rx">
                                     <div class="rx">
                                         <button onclick="startStopPlayerClick();" ontouchend="startStopPlayerTouchend();" class="rx startStopBtn" id="startStopButton" disabled>Start</button>
@@ -68,7 +68,7 @@
                                         <div class="keyDiv" onclick="keyDialog();">
                                             <img src="img/key.svg" id="keyImg">
                                         </div>
-                                    </div>                                
+                                    </div>
                                     <div class="tx dropdownTx">
                                         <button onclick="chSelectTx();" class="tx dropbtnTx" id="chSelectBtnTx"><div id="listenButtonTx">Select</div></button>
                                         <div id="chSelectListTx" class="dropdown-contentTx">
@@ -93,21 +93,21 @@
                                             <source src="img/muted.m4v" type="video/mp4">
                                         </video>
                                     </div>
-                                </td></tr>                
+                                </td></tr>
                                 <tr class="tx"><td class="tx">
                                     <div class="tx">
                                         <button onclick="startMuteSenderClick();" ontouchend="startMuteSenderTouchend();" class="tx startStopBtn" id="startMuteButtonTx" disabled>Broadcast</button>
                                     </div>
                                 </td></tr>
                             </tbody>
-                        </table>                    
+                        </table>
                     </td>
                 </tr>
             </tbody>
-        </table>       
+        </table>
         <div class="micDiv" onclick="toggleTxPanel();">
             <img src="img/mic.svg" id="micImg">
-        </div>        
+        </div>
         <div class="qrDiv">
             <button class="qrBtn" id="qrBtn" onclick="showQr();">QR</button>
         </div>
@@ -130,7 +130,7 @@
                             </td>
                             <td style="text-align: right;">
                                 <button onclick="passCancelClick();" ontouchend="passCancelTouchend();" class="ui passBtn" id="passCancelButton">Cancel</button>
-                            </td>                           
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -138,7 +138,7 @@
         </div>
         <div id="passFailBox" class="passFailBox">
             Unauthorised
-        </div>        
+        </div>
         <div id="stream">
             <video id="audioStream" autoplay playsinline style="display: none"/>
             <audio id="audioRoom" autoplay playsinline/>
