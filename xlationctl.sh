@@ -142,7 +142,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --qrurl)
-            options="$options -e SSL_CHAIN=$1 "
+            options="$options -e QR_CODE_URL=$1 "
             shift
             ;;
         --dev)

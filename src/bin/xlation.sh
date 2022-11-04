@@ -344,7 +344,9 @@ sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_voicemail.*/\1\2\"libjanus_voice
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_rabbitmq.*/\1\2\"libjanus_websockets.so,libjanus_pfunix.so,libjanus_nanomsg.so,libjanus_mqtt.so,libjanus_rabbitmq.so\"/" /etc/janus/janus.jcfg
 
 # Create settings file for player application
-echo "const qrCodeUrl=$QR_CODE_URL" >>/var/www/html/js/settings.js
+echo "const qrCodeUrl=\"$QR_CODE_URL\";" >/var/www/html/js/settings.js
+# Prevent nasty root-owned file in development environments
+chown --reference=/var/www/html/index.html /var/www/html/js/settings.js
 
 nginx
 janus

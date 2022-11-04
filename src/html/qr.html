@@ -8,12 +8,15 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" >
         <title>Translation QR code</title>
         <script src="js/qrcode.js"></script>
+        <script src="js/settings.js"></script>
         <script>
-            var gBaseURL = window.location.protocol + "//" + window.location.hostname, port = window.location.port;
+            let gBaseURL = window.location.protocol + "//" + window.location.hostname, port = window.location.port;
             if (port !== "" && port !== "80" && port !== "443") {
                 gBaseURL += ":" + port;
             }
-
+            if ((typeof qrCodeUrl !== 'undefined') && (qrCodeUrl.length > 2)) {
+                gBaseURL = qrCodeUrl;
+            }
         </script>
     </head>
     <body>
