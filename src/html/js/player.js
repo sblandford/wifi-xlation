@@ -268,7 +268,7 @@ window.onload = function () {
     });
     updateDisplay();
     pollStatus();
-    // setInterval(pollStatus, 5000); TEST TEST Tempoarily disable polling
+    setInterval(pollStatus, 5000);
     // Listen for resize changes
     window.addEventListener("resize", function() {
         // Get screen size (inner/outerWidth, inner/outerHeight)
