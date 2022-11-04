@@ -4,6 +4,9 @@
 #### Default: xlation.example.com
 The domain that will used for the application. This must be a public domain for which you have control of the DNS records. Normally this domain will be over-ridden by a local DNS server on the LAN to access this application. Any public access of this domain could just be a holding page reminding people to connect via WiFi when inside the venue.
 
+## QR_CODE_URL
+The URL that the QR code shown by the QR button will point to. If left blank then it simply shows the current URL
+
 ## HTTPS_ENABLE
 #### Default: false
 Enable SSL if possible. This is possible when valid SSL certificate files are supplied

@@ -31,11 +31,13 @@ usage () {
         --portshift <integer>
             If port 80 and 443 are occupied then add an integer e.g. 8000 for ports 8080 and 8443.
         --rtpforward
-            Forward UDP port range 5006-5050 for external audio input.
+            Forward UDP port range 5006-5050 for external audio input
             To test, try running this command on the host...
             ffmpeg -re -f lavfi -i sine=frequency=216 -c:a libopus -ac 1 -b:a 32k -ar 48000 -f rtp rtp://0.0.0.0:5006
         --verbosity <integer 0-7>
-            Sets the value of debug_level for Janus. 0 is none, 7 is full.
+            Sets the value of debug_level for Janus. 0 is none, 7 is full
+        --qrurl <URL>
+            Fix the URL that is pointed to by the QR code button
         --dev
             Development mode.
             Instead of using the HTML files built with the docker mount the src/html directory.
@@ -139,6 +141,10 @@ while [[ $# -gt 0 ]]; do
             options="$options -e JANUS_DEBUG_LEVEL=$verbosity"
             shift
             ;;
+        --qrurl)
+            options="$options -e SSL_CHAIN=$1 "
+            shift
+            ;;
         --dev)
             [[ "$options" =~ src/html ]] && dupe
             options="$options -v $path/src/bin/xlation.sh:/usr/local/bin/xlation.sh "
@@ -195,12 +201,14 @@ done
 
 if [[ $offset ]]; then
     if [[ ! "$options" =~ net=host ]]; then
-        echo "Portshift can not be specified with --ip option"
+        echo "Portshift can not be specified with --host option"
         usage
     fi
 else
     offset=0
-    options="$options -p $(( offset + 80)):80/tcp -p $(( offset + 443)):443/tcp "
+    if [[ ! "$options" =~ net=host ]]; then
+        options="$options -p $(( offset + 80)):80/tcp -p $(( offset + 443)):443/tcp "
+    fi
 fi
 
 if [[ $params ]] && [[ "$verb" != "start" ]]; then

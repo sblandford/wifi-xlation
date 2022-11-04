@@ -2,7 +2,7 @@
 const gDebugLevels = ['warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
-const gServer = "/janus";
+const gServer = "janus";
 const gOpaqueId = "streaming-" + Janus.randomString(12);
 const gOpaqueIdSend = "audiobridge-" + Janus.randomString(12);
 const gMaxAudioAgeMs = 2000;

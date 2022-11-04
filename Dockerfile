@@ -1,6 +1,7 @@
 FROM ubuntu:kinetic
 
 ENV DOMAIN=xlation.example.com
+ENV QR_CODE_URL=
 ENV HTTPS_ENABLE=false
 ENV SSL_CHAIN=
 ENV SSL_KEY=
