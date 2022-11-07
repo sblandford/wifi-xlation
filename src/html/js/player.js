@@ -10,7 +10,7 @@ const gLangTx = gLang;
 
 let gServer = "janus";
 if ( ws !== false ) {
-    gServer = ws + "://" + window.location.hostname + ":8989";
+    gServer = ws + "://" + window.location.hostname + ":" + ((ws === "wss")?"8989":"8188");
 }
 
 let gStatus = [];
