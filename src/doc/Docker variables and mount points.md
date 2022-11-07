@@ -62,6 +62,10 @@ Stun server port
 #### Default: 32768
 Open connections limit in libmicrohttpd used by janus.transport.http
 
+## ENV WEBSOCKETS
+#### Default: false
+Use Websockets instead of REST API to contact Janus
+
 # Useful mount points
 ## /etc/languages.conf
 #### Default:  
