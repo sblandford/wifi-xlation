@@ -1,6 +1,7 @@
 #!/bin/bash
 RUNNING=true
 NGINX_SSL_DIR="/etc/nginx/cert"
+JS_SETTINGS="/var/www/html/js/settings.js"
 
 CERTS_FILE="$NGINX_SSL_DIR/fullchain.pem"
 KEY_FILE="$NGINX_SSL_DIR/privkey.pem"
@@ -100,6 +101,18 @@ param "admin_ip" "\"127.0.0.1\""
 param "admin_interface" "\"lo\""
 param "enforce_cors" "false"
 param "mhd_connection_limit" "$MAX_HTTP_CONNS"
+
+# Configure the websockets transport if enabled
+if [[ "${WEBSOCKETS,,}" =~ true ]]; then
+    file="/etc/janus/janus.transport.websockets.jcfg"
+    param "enforce_cors" "false"
+    if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
+        param "ws" "false"
+        param "wss" "true"
+        param "cert_pem" "\"$CERTS_FILE\""
+        param "cert_key" "\"$KEY_FILE\""
+    fi
+fi
 
 # Configure NGinx
 echo "user www-data;
@@ -341,12 +354,23 @@ done
 # Disable unwanted plugins
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_voicemail.*/\1\2\"libjanus_voicemail.so,libjanus_echotest.so,libjanus_duktape.so,libjanus_textroom.so,libjanus_sip.so,libjanus_recordplay.so,libjanus_videocall.so,libjanus_lua.so,libjanus_videoroom.so,libjanus_nosip.so\"/" /etc/janus/janus.jcfg
 # Disable unwanted transports
-sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_rabbitmq.*/\1\2\"libjanus_websockets.so,libjanus_pfunix.so,libjanus_nanomsg.so,libjanus_mqtt.so,libjanus_rabbitmq.so\"/" /etc/janus/janus.jcfg
+[[ "${WEBSOCKETS,,}" =~ true ]] || websockets_exlude="libjanus_websockets.so,"
+sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_rabbitmq.*/\1\2\"$websockets_exlude""libjanus_pfunix.so,libjanus_nanomsg.so,libjanus_mqtt.so,libjanus_rabbitmq.so\"/" /etc/janus/janus.jcfg
 
 # Create settings file for player application
-echo "const qrCodeUrl=\"$QR_CODE_URL\";" >/var/www/html/js/settings.js
+echo "const qrCodeUrl = \"$QR_CODE_URL\";" >"$JS_SETTINGS"
+if [[ "${WEBSOCKETS,,}" =~ true ]]; then
+    if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
+        echo "const ws = \"wss\"" >>"$JS_SETTINGS"
+    else
+        echo "const ws = \"ws\"" >>"$JS_SETTINGS"
+    fi
+else
+    echo "const ws = false" >>"$JS_SETTINGS"
+fi
+
 # Prevent nasty root-owned file in development environments
-chown --reference=/var/www/html/index.html /var/www/html/js/settings.js
+chown --reference=/var/www/html/index.html "$JS_SETTINGS"
 
 nginx
 janus

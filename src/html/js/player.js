@@ -2,13 +2,16 @@
 const gDebugLevels = ['warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
-const gServer = "janus";
 const gOpaqueId = "streaming-" + Janus.randomString(12);
 const gOpaqueIdSend = "audiobridge-" + Janus.randomString(12);
 const gMaxAudioAgeMs = 2000;
 const gLang = (LANG.hasOwnProperty(gBrowserLang))?gBrowserLang:'en';
 const gLangTx = gLang;
 
+let gServer = "janus";
+if ( ws !== false ) {
+    gServer = ws + "://" + window.location.hostname + ":8989";
+}
 
 let gStatus = [];
 let gStatusUpdate = false;

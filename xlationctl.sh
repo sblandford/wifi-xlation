@@ -22,6 +22,8 @@ usage () {
                 <AWS_ACCESS_KEY>
                 <AWS_SECRET_KEY>
                 <AWS_REGION>
+        --wss
+            Use Websockets instead of REST API to contact Janus
         --host
             Use host network
         --macvlan <macvlan network name> <ip address>
@@ -115,7 +117,7 @@ while [[ $# -gt 0 ]]; do
             options="$options -e BIND_IP4=$bind_ip4 "
             shift
             ;;
-        --portshift)
+        --portshift)wss
             [[ $offset ]] && dupe
             offset=$1
             if ! [[ "$offset" =~ ^[0-9]{3,4}$ ]]; then
@@ -175,6 +177,9 @@ while [[ $# -gt 0 ]]; do
                 echo "Unable to find cust/ssl/fullchain.crt, cust/ssl/private.key or cust/ssl/s3.txt"
                 usage
             fi
+            ;;
+        --wss)
+            options="$options -e WEBSOCKETS=true "
             ;;
         --domain)
             options="$options -e DOMAIN=$1 "
