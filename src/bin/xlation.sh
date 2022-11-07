@@ -342,7 +342,10 @@ room-$(( id + 1 )): {
     pin = \"$pin\"
     sampling_rate = 48000
     record = false
-    rtp_forward_host = \"localhost\"
+    default_expectedloss = 5
+    default_bitrate = 32768
+    audio_level_average = 10
+    rtp_forward_host = \"0.0.0.0\"
     rtp_forward_host_family = \"ipv4\"
     rtp_forward_port = $port
     rtp_forward_codec = \"opus\"
