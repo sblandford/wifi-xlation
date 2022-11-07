@@ -361,12 +361,18 @@ sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_rabbitmq.*/\1\2\"$websockets_exl
 echo "const qrCodeUrl = \"$QR_CODE_URL\";" >"$JS_SETTINGS"
 if [[ "${WEBSOCKETS,,}" =~ true ]]; then
     if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
-        echo "const ws = \"wss\"" >>"$JS_SETTINGS"
+        echo "const ws = \"wss\";" >>"$JS_SETTINGS"
     else
-        echo "const ws = \"ws\"" >>"$JS_SETTINGS"
+        echo "const ws = \"ws\";" >>"$JS_SETTINGS"
     fi
 else
-    echo "const ws = false" >>"$JS_SETTINGS"
+    echo "const ws = false;" >>"$JS_SETTINGS"
+fi
+
+if [[ ${#STUN_SERVER} -gt 0 ]] && [[ ${#STUN_PORT} -gt 0 ]]; then
+    echo "const gIceServers = [{urls: \"stun:$STUN_SERVER:$STUN_PORT\"}];" >>"$JS_SETTINGS"
+else
+    echo "const gIceServers = null;" >>"$JS_SETTINGS"
 fi
 
 # Prevent nasty root-owned file in development environments

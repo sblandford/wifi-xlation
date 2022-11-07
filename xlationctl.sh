@@ -50,6 +50,8 @@ usage () {
             This enables the list of languages and language passwords to be set up.
         --domain
             Hostname as it will appear in a Janus info request
+        --stunserver
+            Hostname and port of a stun server separated by colon e.g. stun.l.google.com:19302
         --daemon
             Don't attach the terminal to the docker. It will run in the background
         --dummy
@@ -183,6 +185,13 @@ while [[ $# -gt 0 ]]; do
             ;;
         --domain)
             options="$options -e DOMAIN=$1 "
+            shift
+            ;;
+        --stunserver)
+            stunhost=$( echo "$1" | cut -d ":" -f 1 )
+            stunport=$( echo "$1" | cut -d ":" -f 2 )
+            options="$options -e STUN_SERVER=$stunhost "
+            options="$options -e STUN_PORT=$stunport "
             shift
             ;;
         --ignoremdns)

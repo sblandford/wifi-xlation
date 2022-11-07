@@ -25,8 +25,6 @@ let gPlaying = false;
 let gSending = false;
 let gPasswordsTx = {};
 
-let gIceServers = [{urls: "stun:stun.l.google.com:19302"}];
-//let gIceServers = null;
 let gJanus = null;
 let gJanusSend= null;
 let gStreamingHandle = null;
