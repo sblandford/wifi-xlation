@@ -59,7 +59,7 @@ ssl_renew () {
 # Update stats aprox every 10 seconds
 stats_update () {
     while [[ $RUNNING ]]; do
-        for (( i = 0; i < 10; i++ )); do
+        for (( i = 0; i < 5; i++ )); do
             sleep 1
             [[ $RUNNING ]] || return
         done

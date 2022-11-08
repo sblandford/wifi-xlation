@@ -49,5 +49,5 @@ function pollStats () {
 
 window.onload = function () {
     pollStats();
-    setInterval(pollStats, 10000);
+    setInterval(pollStats, 5000);
 }
