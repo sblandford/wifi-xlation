@@ -10,12 +10,12 @@ function initTable (json) {
         let row = table.insertRow();
         let nameCell = row.insertCell(0);
         let activeCell = row.insertCell(1);
-        let viewersCell = row.insertCell(2);
+        let listenersCell = row.insertCell(2);
         row.classList.add('stat');
         nameCell.classList.add('stat');
         activeCell.classList.add('stat');
-        viewersCell.classList.add('stat');
-        tableObjs.push({"row": row, "nameCell" : nameCell, "activeCell" : activeCell, "viewersCell" : viewersCell});
+        listenersCell.classList.add('stat');
+        tableObjs.push({"row": row, "nameCell" : nameCell, "activeCell" : activeCell, "listenersCell" : listenersCell});
     });
 }
 
@@ -37,7 +37,7 @@ function updateTable (statsObj) {
         let notStatColour = (statsObj[i].active)?'grey':'green';
         tableObjs[i].activeCell.classList.remove(notStatColour);
         tableObjs[i].activeCell.classList.add(statColour);
-        tableObjs[i].viewersCell.innerHTML = statsObj[i].viewers;
+        tableObjs[i].listenersCell.innerHTML = statsObj[i].listeners;
     }
 }
 

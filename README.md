@@ -56,6 +56,10 @@ The SSL certificates can be supplied from files in a mounted directory or from a
 
 To best results either run this docker with network=host or using macvlan. This useful video explains the issues : [Alessandro Amirante - Janus &Docker: friends or foe?](https://youtu.be/mrV2BQ95UFY)
 
+# Statistics
+
+There is a statistics page available on /stats.html that will show which streams are active and how many listeners are connected.
+
 ## Further documentation
 
 ### [Docker Variables and Mount Points](src/doc/Docker%20variables%20and%20mount%20points.md)
