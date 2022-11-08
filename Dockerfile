@@ -22,7 +22,9 @@ ENV WEBSOCKETS=false
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf
 COPY src/bin/xlation.sh /usr/local/bin/xlation.sh
+COPY src/bin/stats.sh /usr/local/bin/stats.sh
 RUN chmod 0755 /usr/local/bin/xlation.sh
+RUN chmod 0755 /usr/local/bin/stats.sh
 RUN apt update -y && apt install -y \
     janus \
     libjs-janus-gateway \

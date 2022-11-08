@@ -152,6 +152,7 @@ while [[ $# -gt 0 ]]; do
         --dev)
             [[ "$options" =~ src/html ]] && dupe
             options="$options -v $path/src/bin/xlation.sh:/usr/local/bin/xlation.sh "
+            options="$options -v $path/src/bin/stats.sh:/usr/local/bin/stats.sh "
             options="$options -v $path/src/html:/var/www/html"
             ;;
         --custom)

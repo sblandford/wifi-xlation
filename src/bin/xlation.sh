@@ -44,7 +44,7 @@ ssl_copy () {
 }
 
 
-#Check SSL files for updates approx every day
+# Check SSL files for updates approx every day
 ssl_renew () {
     while [[ $RUNNING ]]; do
         for (( i = 0; i < ( 24 * 60 * 60 ); i++ )); do
@@ -56,6 +56,16 @@ ssl_renew () {
     done
 }
 
+# Update stats aprox every 10 seconds
+stats_update () {
+    while [[ $RUNNING ]]; do
+        for (( i = 0; i < 10; i++ )); do
+            sleep 1
+            [[ $RUNNING ]] || return
+        done
+        /usr/local/bin/stats.sh
+    done
+}
 
 param () {
     local key=$1 value=$2
@@ -323,6 +333,8 @@ for line in $( grep -P -v "^\s*#" /etc/languages.conf | tr -d "\r" ); do
     if [[ ${#port} -lt 4 ]] || [[ ${#lang} -lt 1 ]] || [[ ${#pin} -lt 1 ]]; then
         continue
     fi
+    # "secret" line must come after "id" line for stats.sh to work
+    # The secret must also be in quotes
     echo "
 Language-$(( id + 1 )): {
     type = \"rtp\"
@@ -381,6 +393,10 @@ fi
 # Prevent nasty root-owned file in development environments
 chown --reference=/var/www/html/index.html "$JS_SETTINGS"
 
+# Start the stats polling
+stats_update &
+
+# Start the web server (which detaches) and then the Janus server (which runs in foreground)
 nginx
 janus
 

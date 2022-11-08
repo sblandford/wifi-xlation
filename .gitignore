@@ -1,6 +1,6 @@
 cust/
+src/html/json/stats.json
 src/html/js/janus.js
 src/html/js/settings.js
 src/html/js/janus-min.js
-src/html/acme/*.txt
 **backup
