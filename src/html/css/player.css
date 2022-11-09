@@ -142,17 +142,17 @@ button.tx, button.rx {
 tr.stat {
     height:3em;
 }
-div.vidStopped {
+div.lampStopped {
     opacity: 0.0;
 }
-div.vidStarted {
+div.lampStarted {
     z-index: 2;
     opacity: 0.7;
     /* Add the blur effect */
     filter: blur(6px);
     -webkit-filter: blur(6px);
 }
-div.vidStartedTx {
+div.lampStartedTx {
     z-index: 2;
     opacity: 0.7;
     /* Add the blur effect */

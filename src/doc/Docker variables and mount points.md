@@ -66,6 +66,14 @@ Open connections limit in libmicrohttpd used by janus.transport.http
 #### Default: false
 Use Websockets instead of REST API to contact Janus
 
+## ENV VIDEO_SCREEN_KEEPER_RX
+#### Default: false
+Play a looped video while audio is playing to prevent screen going to sleep
+
+## ENV VIDEO_SCREEN_KEEPER_TX
+#### Default: false
+Play a looped video while translating to prevent screen going to sleep
+
 # Useful mount points
 ## /etc/languages.conf
 #### Default:  

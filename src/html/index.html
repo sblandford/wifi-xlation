@@ -45,11 +45,14 @@
                                     </div>
                                 </td></tr>
                                 <tr class="rx"><td class="rx">
-                                    <div class="rx vidStopped" id="vid">
-                                        <!-- Video is used to keep the display on. Unfortunately some phones stop playing audio consistently when the screen is off -->
-                                        <video class="greyVid" loop  disableRemotePlayback playsinline id="playing">
+                                    <div class="rx lampStopped" id="vidDiv">
+                                        <!-- Video can be used to keep the display on. Unfortunately some phones stop playing audio consistently when the screen is off -->
+                                        <video class="greyVid" loop  disableRemotePlayback playsinline id="playVid">
                                             <source src="img/green.m4v" type="video/mp4">
                                         </video>
+                                    </div>
+                                    <div class="rx lampStopped" id="imgDiv">
+                                        <img class="greyVid" src="img/green.png" id="playImg">
                                     </div>
                                 </td></tr>
                                 <tr class="rx"><td class="rx">
@@ -83,15 +86,25 @@
                                     </div>
                                 </td></tr>
                                 <tr class="tx"><td class="tx">
-                                    <div class="tx vidStopped" id="vidOnTx">
-                                        <video class="greyVid" loop  disableRemotePlayback playsinline id="sendingOn">
-                                            <source src="img/on-air.m4v" type="video/mp4">
-                                        </video>
+                                    <div id="vidTxDiv">
+                                        <div class="tx lampStopped" id="vidOnTx">
+                                            <video class="greyVid" loop  disableRemotePlayback playsinline id="sendingVidOn">
+                                                <source src="img/on-air.m4v" type="video/mp4">
+                                            </video>
+                                        </div>
+                                        <div class="tx lampStopped" id="vidMuteTx">
+                                            <video class="greyVid" loop  disableRemotePlayback playsinline id="sendingVidMute">
+                                                <source src="img/muted.m4v" type="video/mp4">
+                                            </video>
+                                        </div>
                                     </div>
-                                    <div class="tx vidStopped" id="vidMuteTx">
-                                        <video class="greyVid" loop  disableRemotePlayback playsinline id="sendingMute">
-                                            <source src="img/muted.m4v" type="video/mp4">
-                                        </video>
+                                    <div id="imgTxDiv">
+                                        <div class="tx lampStopped" id="imgOnTx">
+                                            <img class="greyVid" src="img/on-air.png" id="sendingImgOn">
+                                        </div>
+                                        <div class="tx lampStopped" id="imgMuteTx">
+                                            <img class="greyVid" src="img/muted.png" id="sendingImgMute">
+                                        </div>
                                     </div>
                                 </td></tr>
                                 <tr class="tx"><td class="tx">

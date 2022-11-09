@@ -270,7 +270,7 @@ window.onload = function () {
     });
     updateDisplay();
     pollStatus();
-    setInterval(pollStatus, 5000);
+    setInterval(pollStatus, 5000);    
     // Listen for resize changes
     window.addEventListener("resize", function() {
         // Get screen size (inner/outerWidth, inner/outerHeight)
@@ -284,16 +284,26 @@ window.onload = function () {
 };
 
 function classIn (id, className) {
-    const classList = document.getElementById(id).classList;
-    if (!classList.contains(className)) {
-        classList.add(className);
+    const element = document.getElementById(id);
+    if (element !== null) {
+        classList = element.classList;
+        if (!classList.contains(className)) {
+            classList.add(className);
+        }
+    } else {
+        console.error("Element id not found : " + id);
     }
 }
 
 function classOut (id, className) {
-    const classList = document.getElementById(id).classList;
-    if (classList.contains(className)) {
-        classList.remove(className);
+    const element = document.getElementById(id);
+    if (element !== null) {
+        const classList = element.classList;
+        if (classList.contains(className)) {
+            classList.remove(className);
+        }
+    } else {
+        console.error("Element id not found : " + id);
     }
 }
 
@@ -480,7 +490,11 @@ function updateDisplay() {
             const startStopButtonId = document.getElementById('startStopButton');
             chNameId.innerHTML = name;
             classSet('chName', 'chNameDead', !status);
-            classSet('playing', 'greyVid', !status);
+            if (gVideoScreenKeeperRx) {
+                classSet('playVid', 'greyVid', !status);
+            } else {
+                classSet('playImg', 'greyVid', !status);
+            }
             if (status) {
                 startStopButtonId.innerText = LANG[gLang][(gPlayIntention)?'stop':'start'];
                startStopButtonId.disabled = false;
@@ -497,8 +511,10 @@ function updateDisplay() {
             const startMuteButtonText = LANG[gLang][startMuteButtonTextEng];
             chNameId.innerHTML = name;
             classSet('chNameTx', 'chNameDead', !validTx);
-            classSet('sendingOn', 'greyVid', !validTx);
-            classSet('sendingMute', 'greyVid', !validTx);
+            classSet('sendingVidOn', 'greyVid', !validTx);
+            classSet('sendingVidMute', 'greyVid', !validTx);
+            classSet('sendingImgOn', 'greyVid', !validTx);
+            classSet('sendingImgMute', 'greyVid', !validTx);
             if (validTx) {
                 classSet('chNameTx', 'chNameBusy', !freeTx);
                 startMuteButtonId.innerText = startMuteButtonText;
@@ -520,23 +536,32 @@ function updateDisplay() {
     document.getElementById('passOKButton').innerText = LANG[gLangTx].ok;
     document.getElementById('passCancelButton').innerText = LANG[gLangTx].cancel;
     document.getElementById('stat').innerText = "";
-    const vidDivId = document.getElementById('vid');
-    if (vidDivId) {
-        classSet('vid', 'vidStopped', !gPlaying);
-        classSet('vid', 'vidStarted', gPlaying);
-    }
-    const vidOnDivIdTx = document.getElementById('vidOnTx');
-    if (vidOnDivIdTx) {
-        classSet('vidOnTx', 'hideItem', gMuteIntention);
-        classSet('vidOnTx', 'vidStopped', !gSending);
-        classSet('vidOnTx', 'vidStartedTx', gSending);
-    }
-    const vidMuteDivIdTx = document.getElementById('vidMuteTx');
-    if (vidMuteDivIdTx) {
-        classSet('vidMuteTx', 'hideItem', !gMuteIntention);
-        classSet('vidMuteTx', 'vidStopped', !gSending);
-        classSet('vidMuteTx', 'vidStartedTx', gSending);
-    }
+
+    classSet('vidDiv', 'hideItem', !gVideoScreenKeeperRx);
+    classSet('imgDiv', 'hideItem', gVideoScreenKeeperRx);
+
+    classSet('vidDiv', 'lampStopped', !gPlaying);
+    classSet('vidDiv', 'lampStarted', gPlaying);
+    classSet('imgDiv', 'lampStopped', !gPlaying);
+    classSet('imgDiv', 'lampStarted', gPlaying);
+
+
+    classSet('vidTxDiv', 'hideItem', !gVideoScreenKeeperTx);
+    classSet('imgTxDiv', 'hideItem', gVideoScreenKeeperTx);
+
+    classSet('vidOnTx', 'hideItem', gMuteIntention);
+    classSet('vidOnTx', 'lampStopped', !gSending);
+    classSet('vidOnTx', 'lampStartedTx', gSending);
+    classSet('vidMuteTx', 'hideItem', !gMuteIntention);
+    classSet('vidMuteTx', 'lampStopped', !gSending);
+    classSet('vidMuteTx', 'lampStartedTx', gSending);
+    classSet('imgOnTx', 'hideItem', gMuteIntention);
+    classSet('imgOnTx', 'lampStopped', !gSending);
+    classSet('imgOnTx', 'lampStartedTx', gSending);
+    classSet('imgMuteTx', 'hideItem', !gMuteIntention);
+    classSet('imgMuteTx', 'lampStopped', !gSending);
+    classSet('imgMuteTx', 'lampStartedTx', gSending);
+    
     document.getElementById('stopButtonTx').style.visibility = (gSendIntention)?"visible":"hidden";
     classSet('micImg', 'iconDisabled', gSendIntention);
     classSet('keyImg', 'iconDisabled', gSendIntention);
@@ -593,8 +618,8 @@ function loadSendRoom () {
 
 function startPlay() {
     loadAudio();
-    const vidPlayer = document.getElementById('playing');
-    if (vidPlayer) {
+    const vidPlayer = document.getElementById('playVid');
+    if (vidPlayer && gVideoScreenKeeperRx) {
         vidPlayer.play();
     }
     gPlaying = true;
@@ -602,8 +627,8 @@ function startPlay() {
 }
 function startSend() {
     loadSendRoom();
-    const vidPlayerTx = document.getElementById('playingTx');
-    if (vidPlayerTx) {
+    const vidPlayerTx = document.getElementById('sendingVidOn');
+    if (vidPlayerTx && gVideoScreenKeeperTx) {
         vidPlayerTx.play();
     }
     gSending = true;
@@ -611,6 +636,14 @@ function startSend() {
 }
 function muteSend() {
     const body = { "request": "configure", "muted": true };
+    const vidPlayerMtTx = document.getElementById('sendingVidMute');
+    const vidPlayerTx = document.getElementById('sendingVidOn');
+    if (vidPlayerTx) {
+        vidPlayerTx.pause();
+    }
+    if (vidPlayerMtTx && gVideoScreenKeeperTx) {
+        vidPlayerMtTx.play();
+    }
     gSendMixerHandle.send({"message": body});
     updateDisplay();
 }
@@ -619,7 +652,7 @@ function stopPlay() {
     const body = { "request": "stop" };
     gStreamingHandle.send({"message": body});
     gStreamingHandle.hangup();
-    const vidPlayer = document.getElementById('playing');
+    const vidPlayer = document.getElementById('playVid');
     if (vidPlayer) {
         vidPlayer.pause();
     }
@@ -629,7 +662,7 @@ function stopPlay() {
 function stopSend() {
     const body = { "request": "leave" };
     gSendMixerHandle.send({"message": body});
-    const vidPlayerTx = document.getElementById('playingTx');
+    const vidPlayerTx = document.getElementById('sendingVidOn');
     if (vidPlayerTx) {
         vidPlayerTx.pause();
     }
@@ -638,6 +671,14 @@ function stopSend() {
 }
 function unMuteSend() {
     const body =  { "request": "configure", "muted": false };
+    const vidPlayerMtTx = document.getElementById('sendingVidMute');
+    const vidPlayerTx = document.getElementById('sendingVidOn');
+    if (vidPlayerTx && gVideoScreenKeeperTx) {
+        vidPlayerTx.play();
+    }
+    if (vidPlayerMtTx) {
+        vidPlayerMtTx.pause();
+    }
     gSendMixerHandle.send({"message": body});
     updateDisplay();
 }

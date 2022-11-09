@@ -390,6 +390,17 @@ else
     echo "const gIceServers = null;" >>"$JS_SETTINGS"
 fi
 
+if [[ "${VIDEO_SCREEN_KEEPER_RX,,}" =~ true ]]; then
+    echo "const gVideoScreenKeeperRx = true;" >>"$JS_SETTINGS"
+else
+    echo "const gVideoScreenKeeperRx = false;" >>"$JS_SETTINGS"
+fi
+if [[ "${VIDEO_SCREEN_KEEPER_TX,,}" =~ true ]]; then
+    echo "const gVideoScreenKeeperTx = true;" >>"$JS_SETTINGS"
+else
+    echo "const gVideoScreenKeeperTx = false;" >>"$JS_SETTINGS"
+fi
+
 # Prevent nasty root-owned file in development environments
 chown --reference=/var/www/html/index.html "$JS_SETTINGS"
 
