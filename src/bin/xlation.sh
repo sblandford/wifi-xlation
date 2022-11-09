@@ -373,15 +373,15 @@ sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_voicemail.*/\1\2\"libjanus_voice
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_rabbitmq.*/\1\2\"$websockets_exlude""libjanus_pfunix.so,libjanus_nanomsg.so,libjanus_mqtt.so,libjanus_rabbitmq.so\"/" /etc/janus/janus.jcfg
 
 # Create settings file for player application
-echo "const qrCodeUrl = \"$QR_CODE_URL\";" >"$JS_SETTINGS"
+echo "const gQrCodeUrl = \"$QR_CODE_URL\";" >"$JS_SETTINGS"
 if [[ "${WEBSOCKETS,,}" =~ true ]]; then
     if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
-        echo "const ws = \"wss\";" >>"$JS_SETTINGS"
+        echo "const gWs = \"wss\";" >>"$JS_SETTINGS"
     else
-        echo "const ws = \"ws\";" >>"$JS_SETTINGS"
+        echo "const gWs = \"ws\";" >>"$JS_SETTINGS"
     fi
 else
-    echo "const ws = false;" >>"$JS_SETTINGS"
+    echo "const gWs = false;" >>"$JS_SETTINGS"
 fi
 
 if [[ ${#STUN_SERVER} -gt 0 ]] && [[ ${#STUN_PORT} -gt 0 ]]; then

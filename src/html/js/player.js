@@ -9,8 +9,8 @@ const gLang = (LANG.hasOwnProperty(gBrowserLang))?gBrowserLang:'en';
 const gLangTx = gLang;
 
 let gServer = "janus";
-if ( ws !== false ) {
-    gServer = ws + "://" + window.location.hostname + ":" + ((ws === "wss")?"8989":"8188");
+if ( gWs !== false ) {
+    gServer = gWs + "://" + window.location.hostname + ":" + ((gWs === "wss")?"8989":"8188");
 }
 
 let gStatus = [];

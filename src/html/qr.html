@@ -14,8 +14,8 @@
             if (port !== "" && port !== "80" && port !== "443") {
                 gBaseURL += ":" + port;
             }
-            if ((typeof qrCodeUrl !== 'undefined') && (qrCodeUrl.length > 2)) {
-                gBaseURL = qrCodeUrl;
+            if ((typeof gQrCodeUrl !== 'undefined') && (gQrCodeUrl.length > 2)) {
+                gBaseURL = gQrCodeUrl;
             }
         </script>
     </head>
