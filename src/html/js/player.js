@@ -7,6 +7,7 @@ const gOpaqueIdSend = "audiobridge-" + Janus.randomString(12);
 const gMaxAudioAgeMs = 2000;
 const gLang = (LANG.hasOwnProperty(gBrowserLang))?gBrowserLang:'en';
 const gLangTx = gLang;
+const gErrorMax = 3;
 
 let gServer = "janus";
 if ( gWs !== false ) {
@@ -34,9 +35,49 @@ let gStereo = false;
 let gWebrtcUp = false;
 let gRemoteStream = null;
 let gRemoteRoomStream = null;
+let gErrorCount = 0;
 
 window.onload = function () {
 
+    janusInit();
+    updateDisplay();
+    pollStatus();
+    setInterval(pollStatus, 5000);    
+    // Listen for resize changes
+    window.addEventListener("resize", function() {
+        // Get screen size (inner/outerWidth, inner/outerHeight)
+        const portrate = (window.innerHeight > window.innerWidth);
+        if (portrate != gPortrate) {
+            gPortrate = portrate;
+            orientation();
+        }
+    }, false);
+    orientation ();
+    
+    // Play silence on a loop when playing WebRTC audio to keep phone
+    // alive when screen goes off.
+    // Start/stop WebRTC when this player starts/stops.
+    const silentPlayer = document.getElementById('silence');
+    if (silentPlayer) {
+        silentPlayer.addEventListener('play', function(){
+            startPlay();
+        });
+        silentPlayer.addEventListener('pause', function(){
+            stopPlay();
+        })
+    }
+    const silentPlayerTx = document.getElementById('silenceTx');
+    if (silentPlayerTx) {
+        silentPlayerTx.addEventListener('play', function(){
+            startSend();
+        });
+        silentPlayerTx.addEventListener('pause', function(){
+            stopSend();
+        })
+    }    
+};
+
+function janusInit () {
     Janus.init({
         debug: gDebugLevels,
         callback: function() {
@@ -268,20 +309,7 @@ window.onload = function () {
             window.location.reload();
         }
     });
-    updateDisplay();
-    pollStatus();
-    setInterval(pollStatus, 5000);    
-    // Listen for resize changes
-    window.addEventListener("resize", function() {
-        // Get screen size (inner/outerWidth, inner/outerHeight)
-        const portrate = (window.innerHeight > window.innerWidth);
-        if (portrate != gPortrate) {
-            gPortrate = portrate;
-            orientation();
-        }
-    }, false);
-    orientation ();
-};
+}
 
 function classIn (id, className) {
     const element = document.getElementById(id);
@@ -369,60 +397,78 @@ function initaliseLocalStorageIfRequired(name) {
 function pollStatus () {
     if (gStreamingHandle !== null) {
         const body = { "request": "list" };
-        gStreamingHandle.send({"message": body, success: function(result) {
-            if(result === null || result === undefined) {
-                    alert("Got no response to our query for available RX streams");
-            } else {
-                const list = result.list;
-                Janus.debug("Got list of streams");
-                gSendMixerHandle.send({"message": body, success: function(result) {
-                    let listTx = false;
-                    if(result === null || result === undefined) {
-                        alert("Got no response to our query for available TX rooms");
-                    } else {
-                        listTx = result.list;
-                        Janus.debug("Got list of rooms");
-                    }
-                    let newStatus = [];
-                    for(let i=0; i < list.length; i++) {
-                        let mp = list[i], validTx = false, freeTx = true, txParticipants = 0;
-                        if (listTx) {
-                            for (let j = 0; j < listTx.length; j++) {
-                                const mpTx = listTx[j];
-                                if (mpTx.room == mp.id) {
-                                    Janus.debug("Got match");
-                                    validTx = true;
-                                    txParticipants = mpTx.num_participants;
-                                    freeTx = (txParticipants <= ((gSendIntention)?1:0));
-                                    break;
+        gStreamingHandle.send({"message": body,
+            success: function(result) {
+                if(result === null || result === undefined) {
+                        alert("Got no response to our query for available RX streams");
+                } else {
+                    const list = result.list;
+                    Janus.debug("Got list of streams");
+                    gSendMixerHandle.send({"message": body, 
+                        success: function(result) {
+                            let listTx = false;
+                            if(result === null || result === undefined) {
+                                alert("Got no response to our query for available TX rooms");
+                            } else {
+                                listTx = result.list;
+                                Janus.debug("Got list of rooms");
+                            }
+                            let newStatus = [];
+                            for(let i=0; i < list.length; i++) {
+                                let mp = list[i], validTx = false, freeTx = true, txParticipants = 0;
+                                if (listTx) {
+                                    for (let j = 0; j < listTx.length; j++) {
+                                        const mpTx = listTx[j];
+                                        if (mpTx.room == mp.id) {
+                                            Janus.debug("Got match");
+                                            validTx = true;
+                                            txParticipants = mpTx.num_participants;
+                                            freeTx = (txParticipants <= ((gSendIntention)?1:0));
+                                            break;
+                                        }
+                                    }
                                 }
+                                // Asuming first stream [0] is audio since that is all we are sending
+                                const audioAge = (mp.media[0])?mp.media[0].age_ms:0;
+                                Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
+                                newStatus.push({'name':mp.description,
+                                            'valid':((audioAge < gMaxAudioAgeMs) && (mp.enabled == true)),
+                                            'id':mp.id,
+                                            'validTx':validTx,
+                                            'freeTx':freeTx,
+                                            'participantsTx':txParticipants
+                                });
+                            }
+                            // Sort array by channel ID
+                            newStatus.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
+                            // If any change then clone array
+                            if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
+                                gStatus = JSON.parse(JSON.stringify(newStatus));
+                                gStatusUpdate = true;
+                                    if (gStatus.length > 0) {
+                                        initaliseLocalStorageIfRequired(gStatus[0].name);
+                                    }
+                                updateDisplay();
+                            }
+                        },
+                        error: function (error) {
+                            Janus.error("Error polling server for TX streams... " + error);
+                            gErrorCount++;
+                            if (gErrorCount > gErrorMax) {
+                                location.reload();
                             }
                         }
-                        // Asuming first stream [0] is audio since that is all we are sending
-                        const audioAge = (mp.media[0])?mp.media[0].age_ms:0;
-                        Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
-                        newStatus.push({'name':mp.description,
-                                    'valid':((audioAge < gMaxAudioAgeMs) && (mp.enabled == true)),
-                                    'id':mp.id,
-                                    'validTx':validTx,
-                                    'freeTx':freeTx,
-                                    'participantsTx':txParticipants
-                        });
-                    }
-                    // Sort array by channel ID
-                    newStatus.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
-                    // If any change then clone array
-                    if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
-                        gStatus = JSON.parse(JSON.stringify(newStatus));
-                        gStatusUpdate = true;
-                            if (gStatus.length > 0) {
-                                initaliseLocalStorageIfRequired(gStatus[0].name);
-                            }
-                        updateDisplay();
-                    }
-                }});
+                    });
+                }
+            },
+            error: function (error) {
+                Janus.error("Error polling server for RX streams... " + error);
+                gErrorCount++;
+                if (gErrorCount > gErrorMax) {
+                    location.reload();
+                }
             }
-        }});
+        });
     }
 }
 
@@ -622,6 +668,10 @@ function startPlay() {
     if (vidPlayer && gVideoScreenKeeperRx) {
         vidPlayer.play();
     }
+    const silentPlayer = document.getElementById('silence');
+    if (silentPlayer && silentPlayer.paused) {
+        silentPlayer.play();
+    }
     gPlaying = true;
     updateDisplay();
 }
@@ -630,6 +680,10 @@ function startSend() {
     const vidPlayerTx = document.getElementById('sendingVidOn');
     if (vidPlayerTx && gVideoScreenKeeperTx) {
         vidPlayerTx.play();
+    }
+    const silentPlayer = document.getElementById('silenceTx');
+    if (silentPlayer && silentPlayer.paused) {
+        silentPlayer.play();
     }
     gSending = true;
     updateDisplay();
@@ -656,6 +710,10 @@ function stopPlay() {
     if (vidPlayer) {
         vidPlayer.pause();
     }
+    const silentPlayer = document.getElementById('silence');
+    if (silentPlayer && !silentPlayer.paused) {
+        silentPlayer.pause();
+    }
     gPlaying = false;
     updateDisplay();
 }
@@ -666,6 +724,10 @@ function stopSend() {
     if (vidPlayerTx) {
         vidPlayerTx.pause();
     }
+    const silentPlayer = document.getElementById('silenceTx');
+    if (silentPlayer && !silentPlayer.paused) {
+        silentPlayer.pause();
+    }    
     gSending = false;
     updateDisplay();
 }

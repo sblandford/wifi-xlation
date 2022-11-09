@@ -71,7 +71,7 @@ Use Websockets instead of REST API to contact Janus
 Play a looped video while audio is playing to prevent screen going to sleep
 
 ## ENV VIDEO_SCREEN_KEEPER_TX
-#### Default: false
+#### Default: true
 Play a looped video while translating to prevent screen going to sleep
 
 # Useful mount points

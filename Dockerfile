@@ -19,7 +19,7 @@ ENV STUN_PORT=19302
 ENV MAX_HTTP_CONNS=32768
 ENV WEBSOCKETS=false
 ENV VIDEO_SCREEN_KEEPER_RX=false
-ENV VIDEO_SCREEN_KEEPER_TX=false
+ENV VIDEO_SCREEN_KEEPER_TX=true
 
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf
