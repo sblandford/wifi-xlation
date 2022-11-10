@@ -404,6 +404,11 @@ if [[ "${VIDEO_SCREEN_KEEPER_TX,,}" =~ true ]]; then
 else
     echo "const gVideoScreenKeeperTx = false;" >>"$JS_SETTINGS"
 fi
+if [[ ${#TIMOUT_URL} -gt 2 ]]; then
+    echo "const timeoutUrl = \"$TIMOUT_URL\"" >>"$JS_SETTINGS"
+else
+    echo "const timeoutUrl = false" >>"$JS_SETTINGS"
+fi
 
 # Prevent nasty root-owned file in development environments
 chown --reference=/var/www/html/index.html "$JS_SETTINGS"

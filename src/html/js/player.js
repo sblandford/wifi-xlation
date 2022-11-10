@@ -42,7 +42,7 @@ window.onload = function () {
     janusInit();
     updateDisplay();
     pollStatus();
-    setInterval(pollStatus, 5000);    
+    setInterval(timedPollStatus, 5000);    
     // Listen for resize changes
     window.addEventListener("resize", function() {
         // Get screen size (inner/outerWidth, inner/outerHeight)
@@ -76,6 +76,30 @@ window.onload = function () {
         })
     }    
 };
+
+function jumpBack () {
+    if (timeoutUrl !== false) {
+        window.location.href = timeoutUrl;
+    } else {
+        window.location.reload();
+    }    
+}
+
+// If we have lost the server then jump to holding page if it is set
+function reloadOrJumpBack () {
+    fetch("index.html", {cache: "no-store"}).then(function(response) {
+        return response.text();
+    }).then(function(html) {
+        if (html.includes("Translation Web Client")) {
+            // Reload page if it exists
+            window.location.reload();
+        } else {
+            jumpBack();
+        }
+    }).catch(function (err) {
+        jumpBack();
+    });
+}
 
 function janusInit () {
     Janus.init({
@@ -211,7 +235,7 @@ function janusInit () {
                     Janus.error(error);
                 },
                 destroyed: function() {
-                    window.location.reload();
+                    reloadOrJumpBack();
                 }
             });
             gJanus = new Janus({
@@ -306,7 +330,7 @@ function janusInit () {
             Janus.error(error);
         },
         destroyed: function() {
-            window.location.reload();
+            reloadOrJumpBack();
         }
     });
 }
@@ -455,7 +479,7 @@ function pollStatus () {
                             Janus.error("Error polling server for TX streams... " + error);
                             gErrorCount++;
                             if (gErrorCount > gErrorMax) {
-                                location.reload();
+                                reloadOrJumpBack();
                             }
                         }
                     });
@@ -465,11 +489,16 @@ function pollStatus () {
                 Janus.error("Error polling server for RX streams... " + error);
                 gErrorCount++;
                 if (gErrorCount > gErrorMax) {
-                    location.reload();
+                    reloadOrJumpBack();
                 }
             }
         });
     }
+}
+
+function timedPollStatus () {
+    if (document.hidden) return true;
+    pollStatus();
 }
 
 function channelNameLookup (channel) {

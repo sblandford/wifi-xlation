@@ -74,6 +74,9 @@ Play a looped video while audio is playing to prevent screen going to sleep
 #### Default: true
 Play a looped video while translating to prevent screen going to sleep
 
+## ENV TIMOUT_URL
+URL to jump to when server becomes unresponsive e.g. when leaving venue & WiFi
+
 # Useful mount points
 ## /etc/languages.conf
 #### Default:  

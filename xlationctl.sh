@@ -50,6 +50,8 @@ usage () {
             This enables the list of languages and language passwords to be set up.
         --domain
             Hostname as it will appear in a Janus info request
+        --timeouturl
+            URL to jump to once contact has been lost with the server
         --stunserver
             Hostname and port of a stun server separated by colon e.g. stun.l.google.com:19302
         --daemon
@@ -186,6 +188,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --domain)
             options="$options -e DOMAIN=$1 "
+            shift
+            ;;
+        --timeouturl)
+            options="$options -e TIMOUT_URL=$1 "
             shift
             ;;
         --stunserver)

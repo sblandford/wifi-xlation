@@ -20,6 +20,7 @@ ENV MAX_HTTP_CONNS=32768
 ENV WEBSOCKETS=false
 ENV VIDEO_SCREEN_KEEPER_RX=false
 ENV VIDEO_SCREEN_KEEPER_TX=true
+ENV TIMOUT_URL=
 
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf

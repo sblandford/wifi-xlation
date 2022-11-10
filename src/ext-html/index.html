@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Expires" content="0"/>
+    <script>
+        /*
+            This is a template for an external holding page.
+            Set these parameters to the internal domain names set only in the LAN DNS overrides.
+            When the client leaves the LAN they get this page (if TIMOUT_URL is configured) and
+            when they enter the venue, they get bounced to the translation client.
+        */
+        const domain = "<YOUR DOMAIN>";
+        const lanSites = [ "<INTERNAL SUBDOMAIN 1>", "<INTERNAL SUBDOMAIN 2>", "<INTERNAL SUBDOMAIN 2>" ];
+        const title = "<YOUR TITLE>";
+            
+        function searchSite () {
+            if (document.hidden) return true;
+            let hits = [];
+            lanSites.forEach(function (sub) {
+                let url = "https://" + sub + "." + domain;
+                console.log("Trying:", url);
+                fetch(url, {cache: "no-store"}).then(function(response) {
+                    return response.text();
+                }).then(function(html) {
+                    if (html.includes("Translation Web Client")) {
+                        hits.push(url);
+                    } else {
+                        console.warn("Wrong page:", url);
+                    }
+                }).catch(function (err) {
+                    // Just ignore expected car crash of errors
+                });
+            });
+            setTimeout(function(){
+                if (hits.length > 0) {
+                    // If more than one hit found, pick one at random
+                    // This is where there is more than one server and we need to load balance
+                    let jumpTo = hits[Math.floor(Math.random()*hits.length)];
+                    console.log("Jumping to : ",jumpTo);
+                    //window.location.href = jumpTo;
+                }
+            }, 2000);
+        }    
+        window.onload = function () {
+            document.getElementById('title').innerHTML = title;
+            searchSite();
+            setInterval(searchSite, 10000);
+        }
+    </script>
+    <style>
+        .global {
+            background-color: black;
+            color: white;
+        }
+        .center {
+            display: flex;
+            align-items: center;
+            height: 60.0vh;
+        }
+        @media (orientation: landscape) {
+            .orientated {
+                font-size: 3.0vw;
+            }
+        }
+        @media (orientation: portrait) {
+            .orientated {
+                font-size: 3.0vh;
+            }
+        }
+        .inner {
+            width: 100.0vw;
+            text-align: center;
+        }
+    </style>
+</head>
+<html>
+    <body class="global">
+        <div class="center orientated">
+            <div class="inner">
+                <h1 id="title"></h1>
+                <h2>Waiting to be connected...</h2>
+                <h2>Please connect to WiFi</h2>
+            </div>
+        </div>
+    </body>
+</html>
