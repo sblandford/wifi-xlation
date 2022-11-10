@@ -171,7 +171,7 @@ http {
 
         include /etc/nginx/mime.types;
         default_type application/octet-stream;
-
+        
         ##
         # SSL Settings
         ##
@@ -230,6 +230,8 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
         index index.html;
 
         server_name _;
+        
+        add_header Access-Control-Allow-Origin *;
 
         # Settings based on https://gist.github.com/denji/8359866
         open_file_cache max=200000 inactive=20s;
@@ -293,6 +295,8 @@ else
         index index.html;
         
         server_name _;
+
+        add_header Access-Control-Allow-Origin *;
 
         # No 'performance boosting' settings here since non-https mode
         # can only be for testing due to WebRTC SSL requirements
