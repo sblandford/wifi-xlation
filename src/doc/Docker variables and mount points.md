@@ -62,20 +62,23 @@ Stun server port
 #### Default: 32768
 Open connections limit in libmicrohttpd used by janus.transport.http
 
-## ENV WEBSOCKETS
+## WEBSOCKETS
 #### Default: false
 Use Websockets instead of REST API to contact Janus
 
-## ENV VIDEO_SCREEN_KEEPER_RX
+## VIDEO_SCREEN_KEEPER_RX
 #### Default: false
 Play a looped video while audio is playing to prevent screen going to sleep
 
-## ENV VIDEO_SCREEN_KEEPER_TX
+## VIDEO_SCREEN_KEEPER_TX
 #### Default: true
 Play a looped video while translating to prevent screen going to sleep
 
-## ENV TIMOUT_URL
+## TIMOUT_URL
 URL to jump to when server becomes unresponsive e.g. when leaving venue & WiFi
+
+## MULTICAST_IP4=
+Multicast IP4 address to use as the output of the translation rooms and the input to the streaming server
 
 # Useful mount points
 ## /etc/languages.conf

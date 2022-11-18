@@ -28,8 +28,10 @@ usage () {
             Use host network
         --macvlan <macvlan network name> <ip address>
             Use a macvlan network that has already been defined with a specific static IP address
-        --bindip4
+        --bindip4 <ip address>
             Bind Nginx to a specific IP
+        --multicast_address <multicast ip address>
+            Use a multicast address as the output of the translation rooms and the input to the streaming server
         --portshift <integer>
             If port 80 and 443 are occupied then add an integer e.g. 8000 for ports 8080 and 8443.
         --rtpforward
@@ -121,7 +123,13 @@ while [[ $# -gt 0 ]]; do
             options="$options -e BIND_IP4=$bind_ip4 "
             shift
             ;;
-        --portshift)wss
+        --multicast_ip4)
+            [[ "$options" =~ MULTICAST_IP4 ]] && dupe
+            multicast_ip4=$1
+            options="$options -e MULTICAST_IP4=$multicast_ip4 "
+            shift
+            ;;
+        --portshift)
             [[ $offset ]] && dupe
             offset=$1
             if ! [[ "$offset" =~ ^[0-9]{3,4}$ ]]; then

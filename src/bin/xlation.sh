@@ -327,6 +327,13 @@ if [[ ! -f "/etc/janus/janus.plugin.audiobridge.jcfg.jcfg_orig" ]]; then
     mv -f "/etc/janus/janus.plugin.audiobridge.jcfg" "/etc/janus/janus.plugin.audiobridge.jcfg_orig"
 fi
 echo >"/etc/janus/janus.plugin.audiobridge.jcfg"
+
+rtp_host_ip="0.0.0.0"
+if [[ ${#MULTICAST_IP4} -gt 4 ]]; then
+    rtp_host_ip="$MULTICAST_IP4"
+    audiomcast="audiomcast = \"$MULTICAST_IP4\""$'\n'"    "
+
+fi
 # Create the language stream entries
 IFS=$'\n'
 id=0
@@ -348,7 +355,7 @@ Language-$(( id + 1 )): {
     audio = true
     video = false
     audioport = $port
-    audiopt = 111
+    $audiomcast""audiopt = 111
     audiortpmap = \"opus/48000/2\"
 }" >> /etc/janus/janus.plugin.streaming.jcfg
     echo "
@@ -361,7 +368,7 @@ room-$(( id + 1 )): {
     default_expectedloss = 5
     default_bitrate = 32768
     audio_level_average = 10
-    rtp_forward_host = \"0.0.0.0\"
+    rtp_forward_host = \"$rtp_host_ip\"
     rtp_forward_host_family = \"ipv4\"
     rtp_forward_port = $port
     rtp_forward_codec = \"opus\"
