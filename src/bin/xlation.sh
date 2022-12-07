@@ -416,6 +416,11 @@ if [[ ${#TIMOUT_URL} -gt 2 ]]; then
 else
     echo "const timeoutUrl = false" >>"$JS_SETTINGS"
 fi
+if [[ "${HIDE_MIC,,}" =~ true ]]; then
+    echo "const gHideMicDefault = true;" >>"$JS_SETTINGS"
+else
+    echo "const gHideMicDefault = false;" >>"$JS_SETTINGS"
+fi
 
 # Prevent nasty root-owned file in development environments
 chown --reference=/var/www/html/index.html "$JS_SETTINGS"

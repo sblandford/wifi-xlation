@@ -60,6 +60,10 @@ To best results either run this docker with network=host or using macvlan. This 
 
 There is a statistics page available on /stats.html that will show which streams are active and how many listeners are connected.
 
+# Microphone icon
+
+Normally, there is a microphone icon visible in the player to activate the translation controls for the translators. Probably, most clients only want to listen to the translation rather than to translate. This icon can be made visible or hidden by visiting /xlator.html. See the docker variables documentation to set the default.
+
 ## Further documentation
 
 ### [Docker Variables and Mount Points](src/doc/Docker%20variables%20and%20mount%20points.md)

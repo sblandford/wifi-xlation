@@ -52,6 +52,8 @@ usage () {
             This enables the list of languages and language passwords to be set up.
         --domain
             Hostname as it will appear in a Janus info request
+        --hidemic
+            Hide the translator mic icon unless activated by /xlator.html page
         --timeouturl
             URL to jump to once contact has been lost with the server
         --stunserver
@@ -197,6 +199,9 @@ while [[ $# -gt 0 ]]; do
         --domain)
             options="$options -e DOMAIN=$1 "
             shift
+            ;;
+        --hidemic)
+            options="$options -e HIDE_MIC=true "
             ;;
         --timeouturl)
             options="$options -e TIMOUT_URL=$1 "

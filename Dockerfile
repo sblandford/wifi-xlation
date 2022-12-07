@@ -22,6 +22,7 @@ ENV VIDEO_SCREEN_KEEPER_RX=false
 ENV VIDEO_SCREEN_KEEPER_TX=true
 ENV TIMOUT_URL=
 ENV MULTICAST_IP4=
+ENV HIDE_MIC=false
 
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf

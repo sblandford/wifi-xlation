@@ -77,8 +77,12 @@ Play a looped video while translating to prevent screen going to sleep
 ## TIMOUT_URL
 URL to jump to when server becomes unresponsive e.g. when leaving venue & WiFi
 
-## MULTICAST_IP4=
+## MULTICAST_IP4
 Multicast IP4 address to use as the output of the translation rooms and the input to the streaming server
+
+## HIDE_MIC
+#### Default: false
+Hide the translator microphone icon by default which can then be changed by /xlator.html
 
 # Useful mount points
 ## /etc/languages.conf

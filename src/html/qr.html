@@ -17,6 +17,12 @@
             if ((typeof gQrCodeUrl !== 'undefined') && (gQrCodeUrl.length > 2)) {
                 gBaseURL = gQrCodeUrl;
             }
+            // Show translator switch page if requested
+            let url = new URL(document.location);
+            let params = new URLSearchParams(url.search);
+            if (params.has('xlator')) {
+              gBaseURL += '/xlator.html?show=' + params.get('xlator');
+            }
         </script>
     </head>
     <body>

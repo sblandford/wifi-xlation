@@ -47,7 +47,7 @@ table.tx, th.tx, td.tx, table.rx, th.rx, td.rx  {
     height: 80vh;
 }
 
-div.tx, div.rx {
+div.tx, div.rx, div.sw {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -361,4 +361,59 @@ div.stat {
     -moz-animation: passFailInOut 4s 1;
     -o-animation: passFailInOut 4s 1;
     animation: passFailInOut 4s 1;
+}
+/* Translator Switch */
+
+.swTitle {
+    padding: 0.5em;
+    font-size: 1.8em;
+    font-weight: bold;
+    color: white;
+}
+
+.swTitle div {
+
+}
+
+.sw input[type=checkbox]{
+    height: 0;
+    width: 0;
+    visibility: hidden;
+}
+
+.sw label {
+    cursor: pointer;
+    text-indent: -99em;
+    width: 18em;
+    height: 9em;
+    background: grey;
+    display: block;
+    border-radius: 10em;
+    position: relative;
+    color: white;
+}
+
+.sw label:after {
+    content: '';
+    position: absolute;
+    top: 0.5em;
+    left: 0.5em;
+    width: 8em;
+    height: 8em;
+    background: white;
+    border-radius: 8em;
+    transition: 0.3s;
+}
+
+.sw input:checked + label {
+    background: lightgreen;
+}
+
+.sw input:checked + label:after {
+    left: calc(100% - 0.5em);
+    transform: translateX(-100%);
+}
+
+.sw label:active:after {
+    width: 13em;
 }
