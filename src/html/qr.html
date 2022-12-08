@@ -9,31 +9,15 @@
         <title>Translation QR code</title>
         <script src="js/qrcode.js"></script>
         <script src="js/settings.js"></script>
-        <script>
-            let gBaseURL = window.location.protocol + "//" + window.location.hostname, port = window.location.port;
-            if (port !== "" && port !== "80" && port !== "443") {
-                gBaseURL += ":" + port;
-            }
-            if ((typeof gQrCodeUrl !== 'undefined') && (gQrCodeUrl.length > 2)) {
-                gBaseURL = gQrCodeUrl;
-            }
-            // Show translator switch page if requested
-            let url = new URL(document.location);
-            let params = new URLSearchParams(url.search);
-            if (params.has('xlator')) {
-              gBaseURL += '/xlator.html?show=' + params.get('xlator');
-            }
-        </script>
+        <script src="js/common.js"></script>
+        <script src="js/qr.js"></script>
     </head>
     <body>
         <div style="display: flex;align-items: center;justify-content: center">
             <table>
-                <tr><td><div><h1 style="font-size: 1.2em;"><script>document.write(gBaseURL);</script></h1></div></tr></td>
+                <tr><td><div><h1 style="font-size: 1.2em;"><span id="urlSpan"></span></h1></div></tr></td>
                 <tr><td><div id="qrcode"></div></tr></td>
             </table>
         </div>
-        <script type="text/javascript">
-            new QRCode(document.getElementById("qrcode"), gBaseURL);
-        </script>
     </body>
 </html>

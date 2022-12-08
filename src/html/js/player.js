@@ -17,12 +17,6 @@ if ( gWs !== false ) {
 let gStatus = [];
 let gStatusUpdate = false;
 let gPortrate = (window.innerHeight > window.innerWidth);
-let gHideMic = gHideMicDefault;
-if (localStorage.getItem('hideMic')) {
-    gHideMic = (gHideMic === 'true');
-} else {
-    localStorage.setItem('hideMic', gHideMic.toString());
-}
 
 let gPlayIntention = false;
 let gSendIntention = false;
@@ -340,38 +334,6 @@ function janusInit () {
     });
 }
 
-function classIn (id, className) {
-    const element = document.getElementById(id);
-    if (element !== null) {
-        classList = element.classList;
-        if (!classList.contains(className)) {
-            classList.add(className);
-        }
-    } else {
-        console.error("Element id not found : " + id);
-    }
-}
-
-function classOut (id, className) {
-    const element = document.getElementById(id);
-    if (element !== null) {
-        const classList = element.classList;
-        if (classList.contains(className)) {
-            classList.remove(className);
-        }
-    } else {
-        console.error("Element id not found : " + id);
-    }
-}
-
-function classSet (id, className, state) {
-    if (state) {
-        classIn (id, className);
-    } else {
-        classOut (id, className);
-    }
-}
-
 function initaliseLocalStorageIfRequired(name) {
     if (!localStorage.channel) {
         localStorage.channel = name;
@@ -609,7 +571,7 @@ function updateDisplay() {
     classSet('imgMuteTx', 'lampStartedTx', gSending);
     
     document.getElementById('stopButtonTx').style.visibility = (gSendIntention)?"visible":"hidden";
-    classSet('micDiv', 'hideItem', !gHideMic);
+    classSet('micDiv', 'hideItem', gHideMic);
     classSet('micImg', 'iconDisabled', gSendIntention);
     classSet('keyImg', 'iconDisabled', gSendIntention);
 }
