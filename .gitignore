@@ -1,7 +1,7 @@
 cust/
 src/html/json/stats.json
 src/html/js/janus.js
-src/html/js/settings.js
+src/html/json/settings.json
 src/html/js/janus-min.js
 src/html/js/streamingtest.js
 **backup

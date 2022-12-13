@@ -1,5 +1,15 @@
-let gHideMic = gHideMicDefault;
+function runWithSettings(funcToRun) {
+    fetch("json/settings.json")
+        .then((response) => response.json())
+        .then((json) => {
+            gSettings = json;
+            gHideMic = gSettings.hideMicDefault;
+            loadStoredHideMic();
+            funcToRun();
+        });
+}
 
+gHideMic = null;
 function loadStoredHideMic () {
     if (localStorage.getItem('hideMic')) {
         let storedHideMic = localStorage.getItem('hideMic');
@@ -10,11 +20,8 @@ function loadStoredHideMic () {
         localStorage.setItem('hideMic', 'default');
     }
 }
-loadStoredHideMic();
-
 
 let gMobileAndTabletState = null;
-
 function mobileAndTabletcheck () {
 
     if (gMobileAndTabletState == null) {

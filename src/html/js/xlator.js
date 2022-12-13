@@ -24,6 +24,8 @@ function xlatorShowTouchend() {
 }
 
 window.onload = function () {
-    let xSwitch = document.getElementById('xlatorSwitch');
-    xSwitch.checked = !gHideMic;
+    runWithSettings(function () {
+        let xSwitch = document.getElementById('xlatorSwitch');
+        xSwitch.checked = !gHideMic;
+    });
 }

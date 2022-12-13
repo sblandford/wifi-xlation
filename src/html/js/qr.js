@@ -1,4 +1,4 @@
- 
+let settings = {}; 
 let gPath = "";
 let gBaseURL = window.location.protocol + "//" + window.location.hostname, port = window.location.port;
 if (port !== "" && port !== "80" && port !== "443") {
@@ -7,18 +7,6 @@ if (port !== "" && port !== "80" && port !== "443") {
 
 function pathUpdate () {
     gPath = '/xlator.html?show=' + (!gHideMic).toString();
-}
-
-// Show translator switch page if requested
-let url = new URL(document.location);
-let params = new URLSearchParams(url.search);
-if (params.has('xlator')) {
-    pathUpdate();
-    pathMonitor();
-} else {
-    if ((typeof gQrCodeUrl !== 'undefined') && (gQrCodeUrl.length > 2)) {
-        gBaseURL = gQrCodeUrl;
-    }
 }
 
 function dispUpdate () {
@@ -41,5 +29,18 @@ function pathMonitor () {
 }
 
 window.onload = function () {
-    dispUpdate();
+    runWithSettings(function() {
+        // Show translator switch page if requested
+        let url = new URL(document.location);
+        let params = new URLSearchParams(url.search);
+        if (params.has('xlator')) {
+            pathUpdate();
+            pathMonitor();
+        } else {
+            if ((typeof gSettings.qrCodeUrl !== 'undefined') && (gSettings.qrCodeUrl.length > 2)) {
+                gBaseURL = gSettings.qrCodeUrl;
+            }
+        }
+        dispUpdate();
+    });
 }
