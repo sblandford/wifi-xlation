@@ -1,5 +1,5 @@
 // Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
-const gDebugLevels = ['debug','log','warn', 'error'];
+const gDebugLevels = ['warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
 const gOpaqueId = "streaming-" + Janus.randomString(12);
