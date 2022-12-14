@@ -1,5 +1,5 @@
 // Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
-const gDebugLevels = ['warn', 'error'];
+const gDebugLevels = ['debug','log','warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
 const gOpaqueId = "streaming-" + Janus.randomString(12);
@@ -326,6 +326,7 @@ function janusInit () {
                         oncleanup: function() {
                             Janus.debug("Clean up request");
                             gRemoteStream = null;
+                            gPlaying = false;
                         }
                     });
                 }
@@ -683,7 +684,6 @@ function stopPlay() {
     if (silentPlayer && !silentPlayer.paused) {
         silentPlayer.pause();
     }
-    gPlaying = false;
     updateDisplay();
 }
 function stopSend() {
@@ -696,8 +696,7 @@ function stopSend() {
     const silentPlayer = document.getElementById('silenceTx');
     if (silentPlayer && !silentPlayer.paused) {
         silentPlayer.pause();
-    }    
-    gSending = false;
+    }
     updateDisplay();
 }
 function unMuteSend() {
@@ -735,53 +734,51 @@ function ontouchendStartTx() {
         startSend();
     }
 }
+
+function channelEnact (channel) {
+    localStorage.channel = channelNameLookup(channel);
+    updateDisplay();
+    if (gPlaying) {
+        Janus.log("Stop RX on channel change");
+        stopPlay();
+        // Poll until stop is complete
+        let waitForStop = setInterval(function() {
+            if (!gPlaying) {
+                startPlay();
+                clearInterval(waitForStop);
+            }
+        }, 500);
+    }    
+}
+
+function channelEnactTx (channel) {
+    localStorage.channelTx = channelNameLookup(channel);
+    if (!gPasswordsTx[localStorage.channelTx]) {
+        gPasswordsTx[localStorage.channelTx] = gDefaultPassword;
+        localStorage.passwordsTx = JSON.stringify(gPasswordsTx);
+    }
+    updateDisplay();   
+}
+
 function onclickChannel(channel) {
     if (!mobileAndTabletcheck()) {
-        localStorage.channel = channelNameLookup(channel);
-        updateDisplay();
-        if (gPlaying) {
-            Janus.log("Stop RX on channel change");
-            stopPlay();
-            startPlay();
-        }
+        channelEnact(channel);
     }
 }
 function onclickChannelTx(channel) {
     if (!mobileAndTabletcheck()) {
-        localStorage.channelTx = channelNameLookup(channel);
-        if (!gPasswordsTx[localStorage.channelTx]) {
-            gPasswordsTx[localStorage.channelTx] = gDefaultPassword;
-            localStorage.passwordsTx = JSON.stringify(gPasswordsTx);
-        }
-        updateDisplay();
-        if (gSending) {
-            Janus.log("Stop TX on channel change");
-            stopSend();
-            startSend();
-        }
+        channelEnactTx(channel);
     }
 }
 
 function ontouchendChannel(channel) {
     if (mobileAndTabletcheck()) {
-        localStorage.channel = channelNameLookup(channel);
-        updateDisplay();
-        if (gPlaying) {
-            startPlay();
-        }
+        channelEnact(channel);
     }
 }
 function ontouchendChannelTx(channel) {
     if (mobileAndTabletcheck()) {
-        localStorage.channelTx = channelNameLookup(channel);
-        if (!gPasswordsTx[localStorage.channelTx]) {
-            gPasswordsTx[localStorage.channelTx] = gDefaultPassword;
-            localStorage.passwordsTx = JSON.stringify(gPasswordsTx);
-        }
-        updateDisplay();
-        if (gSending) {
-            startSend();
-        }
+        channelEnactTx(channel);
     }
 }
 
@@ -835,6 +832,7 @@ function clickSenderStopEnact() {
         gMuteIntention = false;
         Janus.debug("Stop on clickSenderStopEnact");
         stopSend();
+        gSending = false;
     }
 }
 
