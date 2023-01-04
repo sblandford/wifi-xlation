@@ -12,16 +12,9 @@ function xlatorShowSwitch() {
     localStorage.setItem('hideMic', gHideMic.toString());
 }
 function xlatorShowClick() {
-    if (!mobileAndTabletcheck()) {
         xlatorShowSwitch();
-    }
 }
 
-function xlatorShowTouchend() {
-    if (mobileAndTabletcheck()) {
-        xlatorShowSwitch();
-    }
-}
 
 window.onload = function () {
     runWithSettings(function () {
