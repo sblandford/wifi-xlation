@@ -42,7 +42,7 @@ function updateTable (statsObj) {
 }
 
 function pollStats () {
-    fetch(statsJson)
+    fetch(statsJson, {cache: "no-store"})
         .then((response) => response.json())
         .then((json) => updateTable (json));
 }

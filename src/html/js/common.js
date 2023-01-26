@@ -1,5 +1,5 @@
 function runWithSettings(funcToRun) {
-    fetch("json/settings.json")
+    fetch("json/settings.json", {cache: "no-store"})
         .then((response) => response.json())
         .then((json) => {
             gSettings = json;
