@@ -127,6 +127,7 @@ button.tx, button.rx {
 .chName {
     font-weight : bold;
     font-size : 2em;
+    text-align: center;
 }
 .chNameDead {
     color: gray;

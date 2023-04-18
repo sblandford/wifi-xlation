@@ -16,6 +16,8 @@
             
         function searchSite () {
             if (document.hidden) return true;
+            if (busy) return true;
+            busy = true;
             let hits = [];
             lanSites.forEach(function (sub) {
                 let url = "https://" + sub + "." + domain;
@@ -33,17 +35,30 @@
                 });
             });
             setTimeout(function(){
+                
                 if (hits.length > 0) {
                     // If more than one hit found, pick one at random
                     // This is where there is more than one server and we need to load balance
                     let jumpTo = hits[Math.floor(Math.random()*hits.length)];
                     console.log("Jumping to : ",jumpTo);
-                    //window.location.href = jumpTo;
+                    window.location.href = jumpTo;
+                } else {
+                    busy = false;
                 }
             }, 2000);
-        }    
+        }
+        function wifiCheck () {
+            const pleaseConnect = document.getElementById('pleaseConnect');
+            if (navigator.connection && navigator.connection.type && (navigator.connection.type == "wifi")) {
+                pleaseConnect.innerHTML = "";
+            } else {
+                pleaseConnect.innerHTML = "Please connect to WiFi";
+            }        
+        }
         window.onload = function () {
             document.getElementById('title').innerHTML = title;
+            wifiCheck();
+            setInterval(wifiCheck, 500);
             searchSite();
             setInterval(searchSite, 10000);
         }
@@ -56,7 +71,7 @@
         .center {
             display: flex;
             align-items: center;
-            height: 60.0vh;
+            height: 65.0vh;
         }
         @media (orientation: landscape) {
             .orientated {
@@ -72,6 +87,11 @@
             width: 100.0vw;
             text-align: center;
         }
+        .spinner {
+            width: 20vw;
+            height: 20vw;
+            filter: invert(100%);
+        }
     </style>
 </head>
 <html>
@@ -80,7 +100,8 @@
             <div class="inner">
                 <h1 id="title"></h1>
                 <h2>Waiting to be connected...</h2>
-                <h2>Please connect to WiFi</h2>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/2/28/InternetSlowdown_Day.gif" class="spinner" alt="InternetSlowdown_Day.gif: Licenced under CC BY-SA 4.0 by Darmokand, https://commons.wikimedia.org/wiki/File:InternetSlowdown_Day.gif"/>
+                <h2 id="pleaseConnect">Please connect to WiFi</h2>
             </div>
         </div>
     </body>
