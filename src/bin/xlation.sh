@@ -308,7 +308,7 @@ else
         }
         
         location ~ ^/janus($|/) {
-            proxy_pass http://127.0.0.1:9088;
+            proxy_pass http://127.0.0.1:8088;
             proxy_set_header Host \$host;
         }
         location ~ ^/admin($|/) {
