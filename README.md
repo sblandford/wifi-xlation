@@ -26,11 +26,12 @@ A helper bash script, xlationctl.sh, is provided to simplify, or just print out,
 
 To run the application in localhost (WebRTC won't work beyond localhost without SSL):
 
-`./xlationctl.sh start`
+`./xlationctl.sh start --daemon --host`
 
 This will make the application available on `http://localhost`. If port 80 is already occupied on your host then this port can be shifted to, say, 8080:
 
-`./xlationctl.sh start --portshift 8000`
+`./xlationctl.sh start --daemon --portshift 8000`
+
 
 To see what Docker command would be used for any combination of options just run with the `--dummy` switch. This will just print the Docker command rather than actually running it.
 
@@ -47,6 +48,8 @@ For some test tones just use the bash script provided:
 To stop them:
 
 `./test-tones.sh stop`
+
+Either the --host option or the --rtpforward option must be used with xlationctl.sh for the test tones to be received by Janus and be audible.
 
 # SSL
 

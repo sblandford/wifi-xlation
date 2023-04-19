@@ -143,7 +143,8 @@ while [[ $# -gt 0 ]]; do
         --rtpforward)
             [[ "$options" =~ 5006-5050 ]] && dupe
             if [[ "$options" =~ net=host ]]; then
-                echo "--rtpforward is redundant in --host mode"
+                echo "--rtpforward can not be speciied in --host mode"
+                usage
             fi
             options="$options -p 5006-5050:5006-5050/udp "
             ;;
@@ -234,14 +235,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ $offset ]]; then
-    if [[ ! "$options" =~ net=host ]]; then
+    if [[ "$options" =~ net=host ]]; then
         echo "Portshift can not be specified with --host option"
         usage
+    else
+        options="$options -p $(( offset + 80)):80/tcp -p $(( offset + 443)):443/tcp "
     fi
 else
     offset=0
     if [[ ! "$options" =~ net=host ]]; then
-        options="$options -p $(( offset + 80)):80/tcp -p $(( offset + 443)):443/tcp "
+        options="$options -p 80:80/tcp -p 443:443/tcp "
     fi
 fi
 
