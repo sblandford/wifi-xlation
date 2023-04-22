@@ -591,7 +591,7 @@ function chSelectTx() {
     document.getElementById('chSelectListTx').classList.toggle("show");
 }
 // Close the dropdown menu if the user clicks outside of it
-window.onclick = function(event) {
+function positionTests (event) {
     if (!event.target.matches('.dropbtn')) {
         const dropdowns = document.getElementsByClassName("dropdown-content");
         for (let i = 0; i < dropdowns.length; i++) {
@@ -614,7 +614,17 @@ window.onclick = function(event) {
     if (!event.target.matches('.qrBtn')) {
         classOut('qrBox', 'qrShow');
     }
-};
+}
+window.ontouchend = function(event) {
+    if (mobileAndTabletcheck()) {
+        positionTests(event);
+    }
+}
+window.onclick = function(event) {
+    if (!mobileAndTabletcheck()) {
+        positionTests(event);
+    }
+}
 
 
 function loadAudio () {
