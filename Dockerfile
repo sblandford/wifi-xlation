@@ -1,4 +1,4 @@
-FROM ubuntu:kinetic
+FROM ubuntu:lunar
 
 ENV DOMAIN=xlation.example.com
 ENV QR_CODE_URL=
