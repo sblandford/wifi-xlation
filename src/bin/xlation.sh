@@ -102,7 +102,11 @@ if [[ ${#STUN_SERVER} -gt 0 ]] && [[ ${#STUN_PORT} -gt 0 ]]; then
     param "stun_server" "\"$STUN_SERVER\""
     param "stun_port" "\"$STUN_PORT\""
 fi
-
+if [[ "${STUN_IGNORE_FAIL,,}" =~ true ]]; then
+    param "ignore_unreachable_ice_server" "true"
+else
+    param "ignore_unreachable_ice_server" "false"
+fi
 
 file="/etc/janus/janus.transport.http.jcfg"
 param "ip" "\"127.0.0.1\""

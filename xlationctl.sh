@@ -58,6 +58,8 @@ usage () {
             URL to jump to once contact has been lost with the server
         --stunserver
             Hostname and port of a stun server separated by colon e.g. stun.l.google.com:19302
+        --dontignorestunfail
+            Don't ignore unreachable stun server
         --daemon
             Don't attach the terminal to the docker. It will run in the background
         --dummy
@@ -214,6 +216,9 @@ while [[ $# -gt 0 ]]; do
             options="$options -e STUN_SERVER=$stunhost "
             options="$options -e STUN_PORT=$stunport "
             shift
+            ;;
+        --dontignorestunfail)
+            options="$options -e STUN_IGNORE_FAIL=false "
             ;;
         --ignoremdns)
             options="$options -e IGNORE_MDNS=true "

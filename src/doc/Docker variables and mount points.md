@@ -58,6 +58,10 @@ Stun server hostname
 #### Default: 19302
 Stun server port
 
+## STUN_IGNORE_FAIL
+#### Default: true
+Do not produce a fatal error on start if stun server can not be reached
+
 ## MAX_HTTP_CONNS
 #### Default: 32768
 Open connections limit in libmicrohttpd used by janus.transport.http
