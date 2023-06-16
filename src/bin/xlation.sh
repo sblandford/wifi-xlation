@@ -361,6 +361,7 @@ Language-$(( id + 1 )): {
     video = false
     audioport = $port
     $audiomcast""audiopt = 111
+    audiofmtp = \"sprop-stereo=1\"
     audiortpmap = \"opus/48000/2\"
 }" >> /etc/janus/janus.plugin.streaming.jcfg
     echo "
