@@ -278,11 +278,21 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
 
         location ~ ^/janus($|/) {
             proxy_pass http://127.0.0.1:8088;
-            proxy_set_header Host \$host;
+            proxy_set_header   Upgrade \$http_upgrade;
+            proxy_set_header   Connection keep-alive;
+            proxy_set_header   Host \$host;
+            proxy_cache_bypass \$http_upgrade;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto \$scheme;
         }
         location ~ ^/admin($|/) {
             proxy_pass http://127.0.0.1:7088;
-            proxy_set_header Host \$host;
+            proxy_set_header   Upgrade \$http_upgrade;
+            proxy_set_header   Connection keep-alive;
+            proxy_set_header   Host \$host;
+            proxy_cache_bypass \$http_upgrade;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto \$scheme;
         }
         
         ssl_certificate \"$CERTS_FILE\";
