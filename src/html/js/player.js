@@ -152,13 +152,11 @@ function janusInit () {
                                             // Publish our stream
                                             gSendMixerHandle.createOffer(
                                             {
-                                                media: { video: false, audioSend: true },    // This is an audio only room
-                                                /* track will replace media in a future release
                                                 track: [
                                                     { type: 'audio', capture: true, recv: true },
                                                     { type: 'video', capture: false, recv: false },
                                                     { type: 'data' }
-                                                ], */
+                                                ],
                                                 customizeSdp: function(jsep) {
                                                     if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
                                                         // Make sure that our offer contains gStereo too
@@ -285,14 +283,11 @@ function janusInit () {
                                         }
                                     },
                                     // We want recvonly audio and, if negotiated, datachannels
-                                    // For iOS we have to request audio capture for playback to work
-                                    media: { video: false, audioSend: false },    // This is an audio receive-only stream, except for IOS bug workaround
-                                    /* track will replace media in a future release
                                     track: [
                                                 { type: 'audio', capture: false, recv: true },
                                                 { type: 'video', capture: false, recv: false },
                                                 { type: 'data' }
-                                            ], */
+                                            ],
                                     success: function(jsep) {
                                         Janus.debug("Got SDP!");
                                         Janus.debug(jsep);
