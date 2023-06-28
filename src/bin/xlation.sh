@@ -93,8 +93,8 @@ file="/etc/janus/janus.jcfg"
 param "admin_secret" "\"$ADMIN_PASSWORD\""
 param "debug_level" "$JANUS_DEBUG_LEVEL"
 param "server_name" "\"$DOMAIN\""
-if [[ $bind_ip ]]; then
-    param "nat_1_1_mapping" "\"$bind_ip\""
+if [[ ${#NAT_1_1_MAPPING} -gt 0 ]]; then
+    param "nat_1_1_mapping" "\"$NAT_1_1_MAPPING\""
     param "keep_private_host" "false"
 fi
 param "ignore_mdns" "$IGNORE_MDNS"
@@ -107,6 +107,7 @@ if [[ "${STUN_IGNORE_FAIL,,}" =~ true ]]; then
 else
     param "ignore_unreachable_ice_server" "false"
 fi
+
 
 file="/etc/janus/janus.transport.http.jcfg"
 param "ip" "\"127.0.0.1\""
@@ -323,11 +324,21 @@ else
         
         location ~ ^/janus($|/) {
             proxy_pass http://127.0.0.1:8088;
-            proxy_set_header Host \$host;
+            proxy_set_header   Upgrade \$http_upgrade;
+            proxy_set_header   Connection keep-alive;
+            proxy_set_header   Host \$host;
+            proxy_cache_bypass \$http_upgrade;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto \$scheme;
         }
         location ~ ^/admin($|/) {
             proxy_pass http://127.0.0.1:7088;
-            proxy_set_header Host \$host;
+            proxy_set_header   Upgrade \$http_upgrade;
+            proxy_set_header   Connection keep-alive;
+            proxy_set_header   Host \$host;
+            proxy_cache_bypass \$http_upgrade;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto \$scheme;
         }
 }" >/etc/nginx/sites-enabled/default
 fi

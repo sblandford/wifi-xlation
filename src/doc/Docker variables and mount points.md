@@ -88,6 +88,9 @@ Multicast IP4 address to use as the output of the translation rooms and the inpu
 #### Default: false
 Hide the translator microphone icon by default which can then be changed by /xlator.html
 
+## NAT_1_1_MAPPING
+If set, the nat_1_1_mapping is set to the given IP address and keep_private_host is set to "false". This is useful for EC2 instances that are configured with a 1:1 NAT, in which case, set this variable to the public IP address
+
 # Useful mount points
 ## /etc/languages.conf
 #### Default:  
