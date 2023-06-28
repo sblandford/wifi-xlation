@@ -96,6 +96,7 @@ param "server_name" "\"$DOMAIN\""
 if [[ ${#NAT_1_1_MAPPING} -gt 0 ]]; then
     param "nat_1_1_mapping" "\"$NAT_1_1_MAPPING\""
     param "keep_private_host" "false"
+    param "ice_lite" "false"
 fi
 param "ignore_mdns" "$IGNORE_MDNS"
 if [[ ${#STUN_SERVER} -gt 0 ]] && [[ ${#STUN_PORT} -gt 0 ]]; then
