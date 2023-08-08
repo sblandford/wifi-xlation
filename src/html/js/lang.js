@@ -11,7 +11,7 @@ const LANG = {
         "cancel": "Cancel",
         "show": "Show",
         "set password": "Set password",
-        "unauthorised": "Unauthrorised"
+        "unauthorised": "Unauthorised"
     },
     "de" : {
         "select" : "Wählen",
