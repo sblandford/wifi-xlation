@@ -32,9 +32,9 @@ let gRemoteStream = null;
 let gRemoteRoomStream = null;
 let gErrorCount = 0;
 
-// Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
+// Available debug outputs: "trace", "debug", "vdebug", "log", "warn", "error"
 // Modifiy in local storage to set desired debug level in browser
-let gDebugLevels = ['warn', 'error'];
+let gDebugLevels = ["warn", "error"];
 if (!localStorage.debugLevels) {
     localStorage.debugLevels = JSON.stringify(gDebugLevels);
 } else {
@@ -164,7 +164,7 @@ function janusInit () {
                                             // Publish our stream
                                             gSendMixerHandle.createOffer(
                                             {
-                                                track: [
+                                                tracks: [
                                                     { type: 'audio', capture: true, recv: true },
                                                     { type: 'video', capture: false, recv: false },
                                                     { type: 'data' }
@@ -295,7 +295,7 @@ function janusInit () {
                                         }
                                     },
                                     // We want recvonly audio and, if negotiated, datachannels
-                                    track: [
+                                    tracks: [
                                                 { type: 'audio', capture: false, recv: true },
                                                 { type: 'video', capture: false, recv: false },
                                                 { type: 'data' }
