@@ -1,5 +1,3 @@
-// Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
-const gDebugLevels = ['warn', 'error'];
 const gBrowserLang = window.navigator.language.substring(0,2);
 const gDefaultPassword = "secret";
 const gOpaqueId = "streaming-" + Janus.randomString(12);
@@ -33,6 +31,20 @@ let gWebrtcUp = false;
 let gRemoteStream = null;
 let gRemoteRoomStream = null;
 let gErrorCount = 0;
+
+// Available debug outputs: 'trace', 'debug', 'vdebug', 'log', 'warn', 'error'
+// Modifiy in local storage to set desired debug level in browser
+let gDebugLevels = ['warn', 'error'];
+if (!localStorage.debugLevels) {
+    localStorage.debugLevels = JSON.stringify(gDebugLevels);
+} else {
+    try {
+        gDebugLevels = JSON.parse(localStorage.debugLevels);
+    } catch (err) {
+        console.log(err, "Resetting default debug level");
+        localStorage.debugLevels = JSON.stringify(gDebugLevels);
+    }
+}
 
 window.onload = function () {
     runWithSettings(function () {
@@ -638,30 +650,34 @@ function loadSendRoom () {
 }
 
 function startPlay() {
-    loadAudio();
-    const vidPlayer = document.getElementById('playVid');
-    if (vidPlayer && gSettings.videoScreenKeeperRx) {
-        vidPlayer.play();
+    if (!gPlaying) {
+        loadAudio();
+        const vidPlayer = document.getElementById('playVid');
+        if (vidPlayer && gSettings.videoScreenKeeperRx) {
+            vidPlayer.play();
+        }
+        const silentPlayer = document.getElementById('silence');
+        if (silentPlayer && silentPlayer.paused) {
+            silentPlayer.play();
+        }
+        gPlaying = true;
+        updateDisplay();
     }
-    const silentPlayer = document.getElementById('silence');
-    if (silentPlayer && silentPlayer.paused) {
-        silentPlayer.play();
-    }
-    gPlaying = true;
-    updateDisplay();
 }
 function startSend() {
-    loadSendRoom();
-    const vidPlayerTx = document.getElementById('sendingVidOn');
-    if (vidPlayerTx && gSettings.videoScreenKeeperTx) {
-        vidPlayerTx.play();
+    if (!gSending) {
+        loadSendRoom();
+        const vidPlayerTx = document.getElementById('sendingVidOn');
+        if (vidPlayerTx && gSettings.videoScreenKeeperTx) {
+            vidPlayerTx.play();
+        }
+        const silentPlayer = document.getElementById('silenceTx');
+        if (silentPlayer && silentPlayer.paused) {
+            silentPlayer.play();
+        }
+        gSending = true;
+        updateDisplay();
     }
-    const silentPlayer = document.getElementById('silenceTx');
-    if (silentPlayer && silentPlayer.paused) {
-        silentPlayer.play();
-    }
-    gSending = true;
-    updateDisplay();
 }
 function muteSend() {
     const body = { "request": "configure", "muted": true };
@@ -692,17 +708,19 @@ function stopPlay() {
     updateDisplay();
 }
 function stopSend() {
-    const body = { "request": "leave" };
-    gSendMixerHandle.send({"message": body});
-    const vidPlayerTx = document.getElementById('sendingVidOn');
-    if (vidPlayerTx) {
-        vidPlayerTx.pause();
+    if (gSending) {
+        const body = { "request": "leave" };
+        gSendMixerHandle.send({"message": body});
+        const vidPlayerTx = document.getElementById('sendingVidOn');
+        if (vidPlayerTx) {
+            vidPlayerTx.pause();
+        }
+        const silentPlayer = document.getElementById('silenceTx');
+        if (silentPlayer && !silentPlayer.paused) {
+            silentPlayer.pause();
+        }
+        updateDisplay();
     }
-    const silentPlayer = document.getElementById('silenceTx');
-    if (silentPlayer && !silentPlayer.paused) {
-        silentPlayer.pause();
-    }
-    updateDisplay();
 }
 function unMuteSend() {
     const body =  { "request": "configure", "muted": false };
@@ -832,7 +850,7 @@ function clickSenderStartMuteEnact() {
 }
 // The main start/stop button handler
 function clickSenderStopEnact() {
-    if (gSendIntention) {
+    if (gSendIntention && gSending) {
         gSendIntention = false;
         gMuteIntention = false;
         Janus.debug("Stop on clickSenderStopEnact");
