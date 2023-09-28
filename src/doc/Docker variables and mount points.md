@@ -96,11 +96,14 @@ If set, the nat_1_1_mapping is set to the given IP address and keep_private_host
 #### Default:  
 ```
 #RTP Port,Language,Translator password
-5006,English,secret
-5008,Français,secret
-5010,Deutsch,secret
-5012,Español,secret
+5006,*Stage,secret
+5008,English,secret
+5010,Français,secret
+5012,Deutsch,secret
+5014,Español,secret
 ```
 
 The file that specifies the languages and passwords. It is highly recommended to at least change the passwords from "secret" otherwise, by default, anyone can become an instant translator resulting in chaos.
+
+If a channel is going to be used for music or if the echo cancellation and noise reduction is not required, then preprend an asterisk to the language name, e.g. *Stage. This will modify the behaviour of the broadcast to switch off the echo cancellation and noise reduction.
 

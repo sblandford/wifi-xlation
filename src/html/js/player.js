@@ -162,17 +162,23 @@ function janusInit () {
                                         if(!gWebrtcUp) {
                                             gWebrtcUp = true;
                                             // Publish our stream
+                                            let music = gStatus[channelIdLookup(msg.room)].music;
                                             gSendMixerHandle.createOffer(
                                             {
                                                 tracks: [
-                                                    { type: 'audio', capture: true, recv: true },
+                                                    { type: 'audio', capture: {
+                                                        autoGainControl: true,
+                                                        latency: 0,
+                                                        echoCancellation: !music,
+                                                        noiseSuppression: !music,
+                                                    }, recv: true },
                                                     { type: 'video', capture: false, recv: false },
                                                     { type: 'data' }
                                                 ],
                                                 customizeSdp: function(jsep) {
                                                     if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
                                                         // Make sure that our offer contains gStereo too
-                                                        jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;gStereo=1");
+                                                        jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
                                                     }
                                                 },
                                                 success: function(jsep) {
@@ -402,8 +408,10 @@ function pollStatus () {
                                 // Asuming first stream [0] is audio since that is all we are sending
                                 const audioAge = (mp.media[0])?mp.media[0].age_ms:0;
                                 Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
-                                newStatus.push({'name':mp.description,
+                                const musicChannel = (mp.description.length > 1 && (mp.description.substring(0,1) === "*"));
+                                newStatus.push({'name': ((musicChannel)?(mp.description.substring(1,)):mp.description),
                                             'valid':((audioAge < gMaxAudioAgeMs) && (mp.enabled == true)),
+                                            'music': musicChannel,
                                             'id':mp.id,
                                             'validTx':validTx,
                                             'freeTx':freeTx,
@@ -460,6 +468,17 @@ function channelNumberLookup (name) {
     for (let channel in gStatus) {
         if (gStatus[channel].hasOwnProperty("name")) {
             if (name.toUpperCase() == gStatus[channel].name.toUpperCase()) {
+                return channel;
+            }
+        }
+    }
+    return -1;
+}
+
+function channelIdLookup (id) {
+    for (let channel in gStatus) {
+        if (gStatus[channel].hasOwnProperty("id")) {
+            if (id == gStatus[channel].id) {
                 return channel;
             }
         }
