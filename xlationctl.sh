@@ -30,7 +30,7 @@ usage () {
             Use a macvlan network that has already been defined with a specific static IP address
         --bindip4 <ip address>
             Bind Nginx to a specific IP
-        --multicast_address <multicast ip address>
+        --multicast_ip4 <multicast ip address>
             Use a multicast address as the output of the translation rooms and the input to the streaming server
         --portshift <integer>
             If port 80 and 443 are occupied then add an integer e.g. 8000 for ports 8080 and 8443.
