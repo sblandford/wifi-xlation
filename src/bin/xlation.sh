@@ -382,7 +382,7 @@ Language-$(( id + 1 )): {
     audio = true
     video = false
     audioport = $port
-    $audiomcast""audiopt = 111
+    $audiomcast""audiopt = 96
     audiofmtp = \"sprop-stereo=1\"
     audiortpmap = \"opus/48000/2\"
 }" >> /etc/janus/janus.plugin.streaming.jcfg
@@ -400,10 +400,23 @@ room-$(( id + 1 )): {
     rtp_forward_host_family = \"ipv4\"
     rtp_forward_port = $port
     rtp_forward_codec = \"opus\"
-    rtp_forward_ptype = 111
+    rtp_forward_ptype = 96
 }" >> /etc/janus/janus.plugin.audiobridge.jcfg
     id=$(( id + 1 ))
 done
+    echo "
+room-$(( id + 1 )): {
+    description = \"RTSP video\"
+    secret = \"$RANDOM\"
+    audio = true
+    video = true
+    type = \"rtsp\"
+    url = \"rtsp://localhost:8554/mystream\"
+    rtsp_reconnect_delay = 5
+    rtsp_session_timeout = 3
+    rtsp_timeout = 10
+    rtsp_conn_timeout = 5
+}" >> /etc/janus/janus.plugin.streaming.jcfg
 
 # Disable unwanted plugins
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_voicemail.*/\1\2\"libjanus_voicemail.so,libjanus_echotest.so,libjanus_duktape.so,libjanus_textroom.so,libjanus_sip.so,libjanus_recordplay.so,libjanus_videocall.so,libjanus_lua.so,libjanus_videoroom.so,libjanus_nosip.so\"/" /etc/janus/janus.jcfg
