@@ -6,6 +6,8 @@ const gMaxAudioAgeMs = 2000;
 const gLang = (LANG.hasOwnProperty(gBrowserLang))?gBrowserLang:'en';
 const gLangTx = gLang;
 const gErrorMax = 3;
+const gMenuScrollTimoutMs = 150;
+const gStatusPollTime = 5000;
 
 let gSettings = {};
 let gServer = "janus";
@@ -31,6 +33,9 @@ let gWebrtcUp = false;
 let gRemoteStream = null;
 let gRemoteRoomStream = null;
 let gErrorCount = 0;
+let gUserHasScrolled = false;
+let gHasScrolledTimer = null;
+
 
 // Available debug outputs: "trace", "debug", "vdebug", "log", "warn", "error"
 // Modifiy in local storage to set desired debug level in browser
@@ -51,7 +56,7 @@ window.onload = function () {
         janusInit();
         updateDisplay();
         pollStatus();
-        setInterval(timedPollStatus, 5000);    
+        setInterval(timedPollStatus, gStatusPollTime);    
         // Listen for resize changes
         window.addEventListener("resize", function() {
             // Get screen size (inner/outerWidth, inner/outerHeight)
@@ -84,8 +89,28 @@ window.onload = function () {
                 stopSend();
             })
         }
+        const chSelectList = document.getElementById('chSelectList');
+        chSelectList.onscroll = function (e) {
+            scrollInputMaskTimer();
+        };
+        const chSelectListTx = document.getElementById('chSelectListTx')
+        chSelectListTx.onscroll = function (e) {
+            scrollInputMaskTimer();
+        };
     });
 };
+
+function scrollInputMaskTimer () {
+    gUserHasScrolled = true;
+    if (gHasScrolledTimer) {
+        clearTimeout(gHasScrolledTimer);
+        gHasScrolledTimer = null;
+    }
+    gHasScrolledTimer = setTimeout(function () {
+        gUserHasScrolled = false;
+        gHasScrolledTimer = null;
+    }, gMenuScrollTimoutMs);
+}
 
 function jumpBack () {
     if (gSettings.timeoutUrl !== false) {
@@ -611,30 +636,34 @@ function updateDisplay() {
 
 //Drop down menu related
 function chSelect() {
+    gUserHasScrolled = false;
     document.getElementById('chSelectList').classList.toggle("show");
 }
 function chSelectTx() {
+    gUserHasScrolled = false;
     document.getElementById('chSelectListTx').classList.toggle("show");
 }
-// Close the dropdown menu if the user clicks outside of it
-function positionTests (event) {
-    if (!event.target.matches('.dropbtn')) {
-        const dropdowns = document.getElementsByClassName("dropdown-content");
+
+function vanishDropdown (className) {
+        const dropdowns = document.getElementsByClassName(className);
         for (let i = 0; i < dropdowns.length; i++) {
             const openDropdown = dropdowns[i];
             if (openDropdown.classList.contains('show')) {
             openDropdown.classList.remove('show');
             }
-        }
+        }    
+}
+
+// Close the dropdown menu if the user clicks outside of it
+function positionTests (event) {
+    if (!event.target.matches('.dropbtn') && 
+            !event.target.matches('.dropdown-content.show') && 
+            !event.target.matches('a.chNameNormal')) {
+        vanishDropdown("dropdown-content");
     }
-    if (!event.target.matches('.dropbtnTx')) {
-        const dropdownsTx = document.getElementsByClassName("dropdown-contentTx");
-        for (let i = 0; i < dropdownsTx.length; i++) {
-            const openDropdown = dropdownsTx[i];
-            if (openDropdown.classList.contains('show')) {
-            openDropdown.classList.remove('show');
-            }
-        }
+    if (!event.target.matches('.dropbtnTx') && 
+            !event.target.matches('a.chNameNormal')) {
+        vanishDropdown("dropdown-contentTx");
     }
     //Hide QR code if showing
     if (!event.target.matches('.qrBtn')) {
@@ -778,6 +807,7 @@ function ontouchendStartTx() {
 }
 
 function channelEnact (channel) {
+    vanishDropdown("dropdown-content");
     localStorage.channel = channelNameLookup(channel);
     updateDisplay();
     if (gPlaying) {
@@ -794,6 +824,7 @@ function channelEnact (channel) {
 }
 
 function channelEnactTx (channel) {
+    vanishDropdown("dropdown-contentTx");
     localStorage.channelTx = channelNameLookup(channel);
     if (!gPasswordsTx[localStorage.channelTx]) {
         gPasswordsTx[localStorage.channelTx] = gDefaultPassword;
@@ -814,14 +845,16 @@ function onclickChannelTx(channel) {
 }
 
 function ontouchendChannel(channel) {
-    if (mobileAndTabletcheck()) {
+    if (mobileAndTabletcheck() && !gUserHasScrolled) {
         channelEnact(channel);
     }
+    gUserHasScrolled = false;
 }
 function ontouchendChannelTx(channel) {
-    if (mobileAndTabletcheck()) {
+    if (mobileAndTabletcheck() && !gUserHasScrolled) {
         channelEnactTx(channel);
     }
+    gUserHasScrolled = false;
 }
 
 // The main start/stop button handler
@@ -921,10 +954,14 @@ function toggleTxPanel() {
 function sizeRx (full) {
     classSet('tableRx', 'panelHeightHalf', !full);
     classSet('tableRx', 'panelHeightFull', full);
+    classSet('chSelectList', 'menuHeightHalf',!full);
+    classSet('chSelectList', 'menuHeightFull',full);
 }
 function sizeTx (full) {
     classSet('tableTx', 'panelHeightHalf', !full);
     classSet('tableTx', 'panelHeightFull', full);
+    classSet('chSelectListTx', 'menuHeightHalf',!full);
+    classSet('chSelectListTx', 'menuHeightFull',full);
 }
 
 // What happens when orientiation changes depends on whether TX panel is visible
