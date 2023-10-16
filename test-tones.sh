@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MAX_CHANNELS=20
+MAX_CHANNELS=4
 IP="0.0.0.0"
 
 if [[ ${#2} -gt 4 ]]; then
