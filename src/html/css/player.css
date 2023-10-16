@@ -119,6 +119,14 @@ button.tx, button.rx {
 .dropdown-contentTx a:hover, .dropdown-content a:hover {
     background-color: blue;
 }
+::-webkit-scrollbar {
+  background: DarkBlue;
+  width: 1.5em;
+}
+::-webkit-scrollbar-thumb {
+  background: white;
+}
+
 /* Show a disabled channel */
 .disabled {
     pointer-events:none;
@@ -171,7 +179,6 @@ div.lampStartedTx {
 .hideItem {
     display: none !important;
 }
-
 
 div.stat {
     /* display : none; */
@@ -276,7 +283,6 @@ div.stat {
 .iconDisabled {
     filter: invert(100%) brightness(0.5) !important;
 }
-
 
 /* Geo Confirmation Request */
 .passBox {
