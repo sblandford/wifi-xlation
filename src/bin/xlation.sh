@@ -22,10 +22,10 @@ ssl_copy () {
         cp -f "$SSL_CHAIN" "$CERTS_FILE""_tmp"
     elif [[ "${SSL_CHAIN,,}" =~ ^s3:// ]]; then
         # Try a few times before giving up
-        for (( i = 1; i < 6; i++ )); do
+        for (( i = 1; i <= 20; i++ )); do
             s3cmd -qf get "$SSL_CHAIN" "$CERTS_FILE""_tmp" && break
-            echo "Attempt $i of 5 to fetch $SSL_CHAIN failed"
-            sleep 10
+            echo "Attempt $i of 20 to fetch $SSL_CHAIN failed"
+            sleep 30
         done
     fi
     if ssl_check "cert" "$CERTS_FILE""_tmp"; then
@@ -469,6 +469,11 @@ if [[ "${HIDE_MIC,,}" =~ true ]]; then
     echo "    \"hideMicDefault\":true," >>"$JS_SETTINGS"
 else
     echo "    \"hideMicDefault\":false," >>"$JS_SETTINGS"
+fi
+if [[ "${HIDE_OFFAIR,,}" =~ true ]]; then
+    echo "    \"hideOffAir\":true," >>"$JS_SETTINGS"
+else
+    echo "    \"hideOffAir\":false," >>"$JS_SETTINGS"
 fi
 # Dummy end property just to be the one without a comma
 echo "    \"end\":true" >>"$JS_SETTINGS"

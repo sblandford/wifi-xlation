@@ -538,7 +538,9 @@ function updateDisplay() {
             " ontouchend=\"ontouchendChannel(" + channel + ");\"" +
             ">" + name + "</a>\n";
         } else {
-            listHtml += "<a href=\"#\" class=\"disabled chNameNormal\">" + name + "</a>\n";
+            if (!gSettings.hideOffAir) {
+                listHtml += "<a href=\"#\" class=\"disabled chNameNormal\">" + name + "</a>\n";
+            }
         }
 
         if (validTx) {
