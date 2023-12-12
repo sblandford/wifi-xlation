@@ -21,7 +21,12 @@ ssl_copy () {
     if [[ -e "$SSL_CHAIN" ]]; then
         cp -f "$SSL_CHAIN" "$CERTS_FILE""_tmp"
     elif [[ "${SSL_CHAIN,,}" =~ ^s3:// ]]; then
-        s3cmd -qf get "$SSL_CHAIN" "$CERTS_FILE""_tmp"
+        # Try a few times before giving up
+        for (( i = 1; i < 6; i++ )); do
+            s3cmd -qf get "$SSL_CHAIN" "$CERTS_FILE""_tmp" && break
+            echo "Attempt $i of 5 to fetch $SSL_CHAIN failed"
+            sleep 10
+        done
     fi
     if ssl_check "cert" "$CERTS_FILE""_tmp"; then
         cmp -s "$CERTS_FILE""_tmp" "$CERTS_FILE" || ssl_changed=true
