@@ -178,7 +178,10 @@ function updateLiveMic () {
                             },
                             recv: true
                         }
-                    ]
+                    ],
+            error: function(err) {
+                Janus.error("Error when changing Mic : ", err);
+            }
         });
     });
 }
@@ -305,6 +308,9 @@ function janusInit () {
                                     Janus.debug("Handling SDP as well...", jsep);
                                     gSendMixerHandle.handleRemoteJsep({ jsep: jsep });
                                 }
+                            },
+                            onlocaltrack: function (track, on) {
+
                             },
                             // We ignore mid in this application as there is only ever one audio track
                             onremotetrack: function(track,mid,on) {
