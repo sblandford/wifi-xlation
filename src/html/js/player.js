@@ -960,7 +960,7 @@ function ontouchendChannelTx(channel) {
     gUserHasScrolled = false;
 }
 function ontouchendMicTx(deviceId) {
-    if (!mobileAndTabletcheck()) {
+    if (mobileAndTabletcheck()) {
         micEnactTx(deviceId);
     }    
 }
