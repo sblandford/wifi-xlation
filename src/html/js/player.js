@@ -161,7 +161,6 @@ function getMicDeviceId (callback) {
 }
 
 function updateLiveMic () {
-    localStorage.channelTx
     getMicDeviceId(function(micDeviceId) {
         gSendMixerHandle.replaceTracks({
             tracks: [
