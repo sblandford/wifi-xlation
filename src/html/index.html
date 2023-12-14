@@ -77,6 +77,10 @@
                                         <div id="chSelectListTx" class="dropdown-contentTx">
                                         </div>
                                     </div>
+                                    <div class="tx dropdownMicTx">
+                                        <div id="micSelectListTx" class="dropdown-contentMicTx">
+                                        </div>
+                                    </div>                                    
                                 <tr class="tx"><td class="tx">
                                     <div class="tx chName" id="chNameTx">....</div>
                                 </td></tr>
@@ -110,6 +114,9 @@
                                 <tr class="tx"><td class="tx">
                                     <div class="tx">
                                         <button onclick="startMuteSenderClick();" ontouchend="startMuteSenderTouchend();" class="tx startStopBtn" id="startMuteButtonTx" disabled>Broadcast</button>
+                                    </div>
+                                    <div class="micSelDiv" id="micSelDiv" onclick="micSelectTx();">
+                                        <img src="img/micSel.svg" id="micSelImg">
                                     </div>
                                 </td></tr>
                             </tbody>

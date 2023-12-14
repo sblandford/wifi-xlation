@@ -87,13 +87,13 @@ button.tx, button.rx {
     color: GrayText;
 }
 /* The container <div> - needed to position the dropdown content */
-.dropdownTx, .dropdown {
+.dropdownMicTx, .dropdownTx, .dropdown {
     position: relative;
     display: inline-block;
 }
 
 /* Dropdown Content (Hidden by Default) */
-.dropdown-contentTx, .dropdown-content {
+.dropdown-contentMicTx, .dropdown-contentTx, .dropdown-content {
     top: 100%;
     display: none;
     position: absolute;
@@ -105,7 +105,7 @@ button.tx, button.rx {
     overflow: auto;
 }
 /* Links inside the dropdown */
-.dropdown-contentTx a, .dropdown-content a {
+.dropdown-contentMicTx a, .dropdown-contentTx a, .dropdown-content a {
     padding: 0.75em 1em;
     text-decoration: none;
     display: block;
@@ -113,10 +113,10 @@ button.tx, button.rx {
     font-weight: bold;
 }
 /* Change color of dropdown links on hover */
-.dropdown-contentTx a:active, .dropdown-content a:active {
+.dropdown-contentMicTx a:active, .dropdown-contentTx a:active, .dropdown-content a:active {
     background-color: blue;
 }
-.dropdown-contentTx a:hover, .dropdown-content a:hover {
+.dropdown-contentMicTx a:hover, .dropdown-contentTx a:hover, .dropdown-content a:hover {
     background-color: blue;
 }
 ::-webkit-scrollbar {
@@ -148,8 +148,11 @@ button.tx, button.rx {
 .chNameDead {
     color: gray;
 }
-.chNameNormal {
+.micName, .chNameNormal {
     color: white;
+}
+.micActive {
+    color: chartreuse;
 }
 .chNameBusy {
     color: sandybrown;
@@ -274,6 +277,22 @@ div.stat {
     z-index: 1;
 }
 #keyImg {
+    -webkit-filter: invert(100%);
+    filter: invert(100%);    
+    width: 3em;
+    height: 3em;    
+}
+
+.micSelDivHolder {
+    position: relative;
+}
+.micSelDiv {
+    position: absolute;
+    right: 2%;
+    bottom: 2%;
+    z-index: 1;
+}
+#micSelImg {
     -webkit-filter: invert(100%);
     filter: invert(100%);    
     width: 3em;

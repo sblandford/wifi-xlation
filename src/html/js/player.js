@@ -13,6 +13,7 @@ let gSettings = {};
 let gServer = "janus";
 
 let gStatus = [];
+let gMicList = [];
 let gStatusUpdate = false;
 let gPortrate = (window.innerHeight > window.innerWidth);
 
@@ -30,6 +31,8 @@ let gSendMixerHandle = null;
 let gMyId = null;
 let gStereo = false;
 let gWebrtcUp = false;
+let gMusicTx = false;
+let gDeviceIdTx = 'default';
 let gRemoteStream = null;
 let gRemoteRoomStream = null;
 let gErrorCount = 0;
@@ -97,6 +100,10 @@ window.onload = function () {
         chSelectListTx.onscroll = function (e) {
             scrollInputMaskTimer();
         };
+        const micSelectListTx = document.getElementById('micSelectListTx')
+        micSelectListTx.onscroll = function (e) {
+            scrollInputMaskTimer();
+        };        
     });
 };
 
@@ -133,6 +140,46 @@ function reloadOrJumpBack () {
         }
     }).catch(function (err) {
         jumpBack();
+    });
+}
+
+function getMicDeviceId (callback) {
+    let micDeviceId = 'default';
+    Janus.listDevices(function(micDevices) {
+        gMicList = JSON.parse(JSON.stringify(micDevices));
+        // Check if any stored mic device ID exists before trying to use it
+        if (localStorage.micDeviceId) {
+            micDevices.forEach(function(device) {
+                if (device.deviceId && (localStorage.micDeviceId === device.deviceId)) {
+                    micDeviceId = device.deviceId;
+                }
+            }, { audio: true, video: false });
+        }
+        gDeviceIdTx = micDeviceId;
+        callback(micDeviceId)
+    }, { audio: true, video: false })
+}
+
+function updateLiveMic () {
+    localStorage.channelTx
+    getMicDeviceId(function(micDeviceId) {
+        gSendMixerHandle.replaceTracks({
+            tracks: [
+                        { type: 'audio',
+                            mid: '0',
+                            capture: {
+                                autoGainControl: true,
+                                latency: 0,
+                                echoCancellation: !gMusicTx,
+                                noiseSuppression: !gMusicTx,
+                                deviceId: {
+                                    exact: micDeviceId
+                                }
+                            },
+                            recv: true
+                        }
+                    ]
+        });
     });
 }
 
@@ -187,33 +234,40 @@ function janusInit () {
                                         if(!gWebrtcUp) {
                                             gWebrtcUp = true;
                                             // Publish our stream
-                                            let music = gStatus[channelIdLookup(msg.room)].music;
-                                            gSendMixerHandle.createOffer(
-                                            {
-                                                tracks: [
-                                                    { type: 'audio', capture: {
-                                                        autoGainControl: true,
-                                                        latency: 0,
-                                                        echoCancellation: !music,
-                                                        noiseSuppression: !music,
-                                                    }, recv: true },
-                                                    { type: 'video', capture: false, recv: false },
-                                                    { type: 'data' }
-                                                ],
-                                                customizeSdp: function(jsep) {
-                                                    if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
-                                                        // Make sure that our offer contains gStereo too
-                                                        jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
-                                                    }
-                                                },
-                                                success: function(jsep) {
-                                                    Janus.debug("Got SDP!", jsep);
-                                                    const publish = { request: "configure", muted: false };
-                                                    gSendMixerHandle.send({ message: publish, jsep: jsep });
+                                            gMusicTx = gStatus[channelIdLookup(msg.room)].music;
+                                            getMicDeviceId(function(micDeviceId) {
+                                                gSendMixerHandle.createOffer(
+                                                {
+                                                    tracks: [
+                                                        { type: 'audio',
+                                                            capture: {
+                                                                autoGainControl: true,
+                                                                latency: 0,
+                                                                echoCancellation: !gMusicTx,
+                                                                noiseSuppression: !gMusicTx,
+                                                                deviceId: {
+                                                                    exact: micDeviceId
+                                                                }
+                                                            },
+                                                            recv: true
+                                                        },
+                                                        { type: 'video', capture: false, recv: false }
+                                                    ],
+                                                    customizeSdp: function(jsep) {
+                                                        if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
+                                                            // Make sure that our offer contains gStereo too
+                                                            jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
+                                                        }
                                                     },
-                                                error: function(error) {
-                                                    Janus.error("WebRTC error:", error);
-                                                }
+                                                    success: function(jsep) {
+                                                        Janus.debug("Got SDP!", jsep);
+                                                        const publish = { request: "configure", muted: false };
+                                                        gSendMixerHandle.send({ message: publish, jsep: jsep });
+                                                        },
+                                                    error: function(error) {
+                                                        Janus.error("WebRTC error:", error);
+                                                    }
+                                                });
                                             });
                                         }
                                         break;
@@ -241,6 +295,7 @@ function janusInit () {
                                         break;
                                     case "left":
                                         Janus.debug("Left room", jsep);
+                                        //gSendMixerHandle.hangup();
                                         break;
                                     default:
                                         Janus.warn("Unhandled event: " + event);
@@ -379,6 +434,9 @@ function janusInit () {
     });
 }
 
+function newSend () {
+}
+
 function initaliseLocalStorageIfRequired(name) {
     if (!localStorage.channel) {
         localStorage.channel = name;
@@ -514,6 +572,7 @@ function channelIdLookup (id) {
 function updateDisplay() {
     let listHtml = '';
     let listHtmlTx = '';
+    let micListHtmlTx = '';
     for (let channel = 0; channel < gStatus.length; channel++) {
         let status = false, freeTx = true, validTx = false;
         let name = (parseInt(channel) + 1).toString();
@@ -594,8 +653,19 @@ function updateDisplay() {
             }
         }
     }
+    gMicList.forEach(function(device) {
+        if (device.deviceId && (device.kind === 'audioinput')) {
+            let micActive = (gDeviceIdTx === device.deviceId);
+            micListHtmlTx +="<a href=\"#\"" +
+                " class=\"" + (micActive?"micActive":"micName") + "\"" +
+                " onclick=\"onclickMicTx('" + device.deviceId + "');\"" +
+                " ontouchend=\"ontouchendMicTx('" + device.deviceId + "');\"" +
+                ">" + device.label + "</a>\n";
+        }
+    });
     document.getElementById('chSelectList').innerHTML = listHtml;
     document.getElementById('chSelectListTx').innerHTML = listHtmlTx;
+    document.getElementById('micSelectListTx').innerHTML = micListHtmlTx;
     document.getElementById('chSelectBtn').innerText = LANG[gLang].select;
     document.getElementById('chSelectBtnTx').innerText = LANG[gLangTx].select;
     document.getElementById('chSelectBtnTx').disabled = gSending;
@@ -645,6 +715,17 @@ function chSelectTx() {
     gUserHasScrolled = false;
     document.getElementById('chSelectListTx').classList.toggle("show");
 }
+function micSelectTx() {
+    // Update mic list before showing
+    Janus.listDevices(function(micDevices) {
+            gMicList = JSON.parse(JSON.stringify(micDevices));
+            gUserHasScrolled = false;
+            updateDisplay();
+            document.getElementById('micSelectListTx').classList.toggle("show");
+        },
+        { audio: true, video: false}
+    );
+}
 
 function vanishDropdown (className) {
         const dropdowns = document.getElementsByClassName(className);
@@ -667,6 +748,10 @@ function positionTests (event) {
             !event.target.matches('a.chNameNormal')) {
         vanishDropdown("dropdown-contentTx");
     }
+    if (!event.target.matches('.micSelDiv') &&
+            !event.target.matches('a.micNameNormal')) {
+        vanishDropdown("dropdown-contentMicTx");
+    }      
     //Hide QR code if showing
     if (!event.target.matches('.qrBtn')) {
         classOut('qrBox', 'qrShow');
@@ -760,7 +845,9 @@ function stopPlay() {
 function stopSend() {
     if (gSending) {
         const body = { "request": "leave" };
-        gSendMixerHandle.send({"message": body});
+        if (gWebrtcUp) {
+            gSendMixerHandle.send({"message": body});
+        }
         const vidPlayerTx = document.getElementById('sendingVidOn');
         if (vidPlayerTx) {
             vidPlayerTx.pause();
@@ -769,6 +856,7 @@ function stopSend() {
         if (silentPlayer && !silentPlayer.paused) {
             silentPlayer.pause();
         }
+        Janus.stopAllTracks(gSendMixerHandle);
         updateDisplay();
     }
 }
@@ -835,6 +923,14 @@ function channelEnactTx (channel) {
     updateDisplay();   
 }
 
+function micEnactTx(deviceId) {
+    vanishDropdown("dropdown-contentMicTx");
+    localStorage.micDeviceId = deviceId;
+    if (gWebrtcUp) {
+        updateLiveMic();
+    }
+}
+
 function onclickChannel(channel) {
     if (!mobileAndTabletcheck()) {
         channelEnact(channel);
@@ -844,6 +940,11 @@ function onclickChannelTx(channel) {
     if (!mobileAndTabletcheck()) {
         channelEnactTx(channel);
     }
+}
+function onclickMicTx(deviceId) {
+    if (!mobileAndTabletcheck()) {
+        micEnactTx(deviceId);
+    }    
 }
 
 function ontouchendChannel(channel) {
@@ -857,6 +958,11 @@ function ontouchendChannelTx(channel) {
         channelEnactTx(channel);
     }
     gUserHasScrolled = false;
+}
+function ontouchendMicTx(deviceId) {
+    if (!mobileAndTabletcheck()) {
+        micEnactTx(deviceId);
+    }    
 }
 
 // The main start/stop button handler
@@ -910,6 +1016,8 @@ function clickSenderStopEnact() {
         Janus.debug("Stop on clickSenderStopEnact");
         stopSend();
         gSending = false;
+        // Need to re-update display to reflect not sending flag
+        updateDisplay();
     }
 }
 
@@ -964,6 +1072,8 @@ function sizeTx (full) {
     classSet('tableTx', 'panelHeightFull', full);
     classSet('chSelectListTx', 'menuHeightHalf',!full);
     classSet('chSelectListTx', 'menuHeightFull',full);
+    classSet('micSelectListTx', 'menuHeightHalf',!full);
+    classSet('micSelectListTx', 'menuHeightFull',full);    
 }
 
 // What happens when orientiation changes depends on whether TX panel is visible
