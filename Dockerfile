@@ -1,4 +1,4 @@
-FROM ubuntu:lunar
+FROM ubuntu:mantic
 
 ENV DOMAIN=xlation.example.com
 ENV QR_CODE_URL=

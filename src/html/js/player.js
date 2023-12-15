@@ -160,11 +160,10 @@ function getMicDeviceId (callback) {
     }, { audio: true, video: false })
 }
 
-function updateLiveMic () {
+function getMicTrack (callback) {
     getMicDeviceId(function(micDeviceId) {
-        gSendMixerHandle.replaceTracks({
-            tracks: [
-                        { type: 'audio',
+        let track = {
+                            type: 'audio',
                             mid: '0',
                             capture: {
                                 autoGainControl: true,
@@ -176,12 +175,19 @@ function updateLiveMic () {
                                 }
                             },
                             recv: true
-                        }
-                    ],
+                    }
+        callback(track);
+    });
+}
+
+function updateLiveMic () {
+    getMicTrack(function(track) {
+        gSendMixerHandle.replaceTracks({
+            tracks: [ track ],
             error: function(err) {
                 Janus.error("Error when changing Mic : ", err);
             }
-        });
+        });        
     });
 }
 
@@ -193,242 +199,14 @@ function janusInit () {
                 Janus.error("No WebRTC support");
                 return;
             }
+            // Generate fake empty response
+            gSendMixerHandle = {"send":function (fakeParams) {
+                fakeParams.success({"list":[]});
+            }};
             if (!gHideMic) {
-                gJanusSend = new Janus({
-                    server: gServer,
-                    iceServers: gSettings.iceServers,
-                    success: function() {
-                        gJanusSend.attach({
-                            // Audiobridge is used for the translator to uplink the audio.
-                            // If another translator appears then they will hear each other.
-                            // This is useful for handing over from one translator to another without breaking the transmission
-                            plugin: "janus.plugin.audiobridge",
-                            gOpaqueId: gOpaqueIdSend,
-                            success: function(pluginHandle) {
-                                gSendMixerHandle = pluginHandle;
-                                Janus.log("Plugin attached! (" + gSendMixerHandle.getPlugin() + ", id=" + gSendMixerHandle.getId() + ")");
-                            },
-                            error: function(error) {
-                                Janus.error("Error attaching plugin... " + error);
-                            },
-                            consentDialog: function(on) {
-                                Janus.debug("Consent dialog should be " + (on ? "on" : "off") + " now");
-                                // Block TX panel interaction while waiting for response
-                                classSet('panelTx', 'blocker', on);
-                            },
-                            iceState: function(state) {
-                                Janus.log("ICE state changed to " + state);
-                            },
-                            mediaState: function(medium, on, mid) {
-                                Janus.log("Janus " + (on ? "started" : "stopped") + " receiving our " + medium + " (mid=" + mid + ")");
-                            },
-                            webrtcState: function(on) {
-                                Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
-                            },
-                            onmessage: function(msg, jsep) {
-                                Janus.debug(" ::: Got a message :::", msg);
-                                const event = msg.audiobridge;
-                                Janus.debug("Event: " + event);
-                                switch (event) {
-                                    case "joined":
-                                        gMyId = msg.id;
-                                        Janus.log("Successfully joined room " + msg.room + " with ID " + gMyId);
-                                        if(!gWebrtcUp) {
-                                            gWebrtcUp = true;
-                                            // Publish our stream
-                                            gMusicTx = gStatus[channelIdLookup(msg.room)].music;
-                                            getMicDeviceId(function(micDeviceId) {
-                                                gSendMixerHandle.createOffer(
-                                                {
-                                                    tracks: [
-                                                        { type: 'audio',
-                                                            capture: {
-                                                                autoGainControl: true,
-                                                                latency: 0,
-                                                                echoCancellation: !gMusicTx,
-                                                                noiseSuppression: !gMusicTx,
-                                                                deviceId: {
-                                                                    exact: micDeviceId
-                                                                }
-                                                            },
-                                                            recv: true
-                                                        },
-                                                        { type: 'video', capture: false, recv: false }
-                                                    ],
-                                                    customizeSdp: function(jsep) {
-                                                        if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
-                                                            // Make sure that our offer contains gStereo too
-                                                            jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
-                                                        }
-                                                    },
-                                                    success: function(jsep) {
-                                                        Janus.debug("Got SDP!", jsep);
-                                                        const publish = { request: "configure", muted: false };
-                                                        gSendMixerHandle.send({ message: publish, jsep: jsep });
-                                                        },
-                                                    error: function(error) {
-                                                        Janus.error("WebRTC error:", error);
-                                                    }
-                                                });
-                                            });
-                                        }
-                                        break;
-                                    case "roomchanged":
-                                        gMyId = msg.id;
-                                        Janus.log("Moved to room " + msg.room + ", new ID: " + myid);
-                                        break;
-                                    case "destroyed":
-                                        Janus.warn("The room has been destroyed!");
-                                        break;
-                                    case "event":
-                                        if(msg.participants) {
-                                            const list = msg.participants;
-                                            Janus.debug("Got a list of participants:", list);
-                                        } else if (msg.error) {
-                                            if (msg.error_code == 489) {
-                                                authorisationFail();
-                                            }
-                                            Janus.error(msg.error);
-                                        }
-                                        if (msg.leaving) {
-                                            const leaving = msg.leaving;
-                                            Janus.log("Participant left: " + leaving);
-                                        }
-                                        break;
-                                    case "left":
-                                        Janus.debug("Left room", jsep);
-                                        //gSendMixerHandle.hangup();
-                                        break;
-                                    default:
-                                        Janus.warn("Unhandled event: " + event);
-                                        break;
-                                }
-                                if(jsep) {
-                                    Janus.debug("Handling SDP as well...", jsep);
-                                    gSendMixerHandle.handleRemoteJsep({ jsep: jsep });
-                                }
-                            },
-                            onlocaltrack: function (track, on) {
-
-                            },
-                            // We ignore mid in this application as there is only ever one audio track
-                            onremotetrack: function(track,mid,on) {
-                                Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
-                                if(gRemoteRoomStream || track.kind !== "audio")
-                                    return;
-                                if(!on) {
-                                    gRemoteRoomStream = null;
-                                    return;
-                                }
-                                gRemoteRoomStream = new MediaStream();
-                                gRemoteRoomStream.addTrack(track.clone());
-                                const audio = document.getElementById('audioRoom');
-                                Janus.attachMediaStream(audio, gRemoteRoomStream);
-                            },
-                            oncleanup: function() {
-                                Janus.debug("Clean up request");
-                                gRemoteRoomStream = null;
-                            }
-                        });
-                    },
-                    error: function(error) {
-                        Janus.error(error);
-                    },
-                    destroyed: function() {
-                        reloadOrJumpBack();
-                    }
-                });
-            } else {
-                // Generate fake empty response
-                gSendMixerHandle = {"send":function (fakeParams) {
-                    fakeParams.success({"list":[]});
-                }}
+                sendInit();
             }
-            gJanus = new Janus({
-                server: gServer,
-                iceServers: gSettings.iceServers,
-                success: function() {
-                    gJanus.attach({
-                        // Receive a translation channel stream either relayed from the corresponding translator room or received on Janus via RTP
-                        plugin: "janus.plugin.streaming",
-                        gOpaqueId: gOpaqueId,
-                        iceState: function(state) {
-                            Janus.log("ICE state changed to " + state);
-                        },
-                        webrtcState: function(on) {
-                            Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
-                        },
-                        slowLink: function(uplink, lost, mid) {
-                            Janus.warn("Janus reports problems " + (uplink ? "sending" : "receiving") +
-                                " packets on mid " + mid + " (" + lost + " lost packets)");
-                        },
-                        success: function(pluginHandle) {
-                            gStreamingHandle = pluginHandle;
-                            Janus.log("Plugin attached! (" + gStreamingHandle.getPlugin() + ", id=" + gStreamingHandle.getId() + ")");
-                            pollStatus();
-                        },
-                        error: function(error) {
-                            Janus.error("Error attaching plugin... " + error);
-                        },
-                        onmessage: function(msg, jsep) {
-                            Janus.debug("Got message...");
-                            Janus.debug(msg);
-                            if(jsep !== undefined && jsep !== null) {
-                                Janus.debug("Handling SDP as well...");
-                                Janus.debug(jsep);
-                                var stereo = (jsep.sdp.indexOf("stereo=1") !== -1);
-                                gStreamingHandle.createAnswer({
-                                    jsep: jsep,
-                                    customizeSdp: function(jsep) {
-                                        if(stereo && jsep.sdp.indexOf("stereo=1") == -1) {
-                                            // Make sure that our offer contains stereo too
-                                            jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
-                                        }
-                                    },
-                                    // We want recvonly audio and, if negotiated, datachannels
-                                    tracks: [
-                                                { type: 'audio', capture: false, recv: true },
-                                                { type: 'video', capture: false, recv: false },
-                                                { type: 'data' }
-                                            ],
-                                    success: function(jsep) {
-                                        Janus.debug("Got SDP!");
-                                        Janus.debug(jsep);
-                                        const body = { "request": "start" };
-                                        gStreamingHandle.send({"message": body, "jsep": jsep});
-                                    },
-                                    error: function(error) {
-                                        Janus.error("WebRTC error:", error);
-                                    }
-                                });
-                            }
-                        },
-                        // We ignore mid in this application as there is only ever one audio track
-                        onremotetrack: function(track,mid,on) {
-                            Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
-                            if(gRemoteStream || track.kind !== "audio")
-                                return;
-                            // We only have one track in this application
-                            if(!on) {
-                                 gRemoteStream = null;
-                                 return;
-                            }
-                            const audio = document.getElementById('audioStream');
-                            audio.volume = 0;
-                            gRemoteStream = new MediaStream([track]);
-                            gRemoteStream.addTrack(track.clone());
-                            Janus.attachMediaStream(audio, gRemoteStream);
-                            audio.play();
-                            audio.volume = 1;
-                        },
-                        oncleanup: function() {
-                            Janus.debug("Clean up request");
-                            gRemoteStream = null;
-                            gPlaying = false;
-                        }
-                    });
-                }
-            });
+            receiveInit();
         },
         error: function(error) {
             Janus.error(error);
@@ -439,7 +217,237 @@ function janusInit () {
     });
 }
 
-function newSend () {
+function sendInit () {
+    if (gJanusSend) return;
+    gJanusSend = new Janus({
+        server: gServer,
+        iceServers: gSettings.iceServers,
+        success: function() {
+            gJanusSend.attach({
+                // Audiobridge is used for the translator to uplink the audio.
+                // If another translator appears then they will hear each other.
+                // This is useful for handing over from one translator to another without breaking the transmission
+                plugin: "janus.plugin.audiobridge",
+                gOpaqueId: gOpaqueIdSend,
+                success: function(pluginHandle) {
+                    gSendMixerHandle = pluginHandle;
+                    Janus.log("Plugin attached! (" + gSendMixerHandle.getPlugin() + ", id=" + gSendMixerHandle.getId() + ")");
+                },
+                error: function(error) {
+                    Janus.error("Error attaching plugin... " + error);
+                },
+                consentDialog: function(on) {
+                    Janus.debug("Consent dialog should be " + (on ? "on" : "off") + " now");
+                    // Block TX panel interaction while waiting for response
+                    classSet('panelTx', 'blocker', on);
+                },
+                iceState: function(state) {
+                    Janus.log("ICE state changed to " + state);
+                },
+                mediaState: function(medium, on, mid) {
+                    Janus.log("Janus " + (on ? "started" : "stopped") + " receiving our " + medium + " (mid=" + mid + ")");
+                },
+                webrtcState: function(on) {
+                    Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
+                },
+                onmessage: function(msg, jsep) {
+                    Janus.debug(" ::: Got a message :::", msg);
+                    const event = msg.audiobridge;
+                    Janus.debug("Event: " + event);
+                    switch (event) {
+                        case "joined":
+                            gMyId = msg.id;
+                            Janus.log("Successfully joined room " + msg.room + " with ID " + gMyId);
+                            if(!gWebrtcUp) {
+                                gWebrtcUp = true;
+                                // Publish our stream
+                                gMusicTx = gStatus[channelIdLookup(msg.room)].music;
+                                getMicTrack(function(track) {
+                                    gSendMixerHandle.createOffer(
+                                    {
+                                        tracks: [
+                                            track,
+                                            { type: 'video', capture: false, recv: false }
+                                        ],
+                                        customizeSdp: function(jsep) {
+                                            if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
+                                                // Make sure that our offer contains gStereo too
+                                                jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
+                                            }
+                                        },
+                                        success: function(jsep) {
+                                            gJespTx = jsep;
+                                            Janus.debug("Got SDP!", jsep);
+                                            const publish = { request: "configure", muted: false };
+                                            gSendMixerHandle.send({ message: publish, jsep: jsep });
+                                            },
+                                        error: function(error) {
+                                            Janus.error("WebRTC error:", error);
+                                        }
+                                    });
+                                });
+                            }
+                            break;
+                        case "roomchanged":
+                            gMyId = msg.id;
+                            Janus.log("Moved to room " + msg.room + ", new ID: " + myid);
+                            break;
+                        case "destroyed":
+                            Janus.warn("The room has been destroyed!");
+                            break;
+                        case "event":
+                            if(msg.participants) {
+                                const list = msg.participants;
+                                Janus.debug("Got a list of participants:", list);
+                            } else if (msg.error) {
+                                if (msg.error_code == 489) {
+                                    authorisationFail();
+                                }
+                                Janus.error(msg.error);
+                            }
+                            if (msg.leaving) {
+                                const leaving = msg.leaving;
+                                Janus.log("Participant left: " + leaving);
+                            }
+                            break;
+                        case "left":
+                            Janus.log("Left room", jsep);
+                            gSendMixerHandle.hangup();
+                            break;
+                        default:
+                            Janus.warn("Unhandled event: " + event);
+                            break;
+                    }
+                    if(jsep) {
+                        Janus.debug("Handling SDP as well...", jsep);
+                        gSendMixerHandle.handleRemoteJsep({ jsep: jsep });
+                    }
+                },
+                onlocaltrack: function (track, on) {
+
+                },
+                // We ignore mid in this application as there is only ever one audio track
+                onremotetrack: function(track,mid,on) {
+                    Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
+                    if (track.kind !== "audio")
+                        return;
+                    if(!on) {
+                        gRemoteRoomStream = null;
+                        gJanusSend.destroy();
+                        return;
+                    }
+                    if (gRemoteRoomStream)
+                        return;
+                    gRemoteRoomStream = new MediaStream();
+                    gRemoteRoomStream.addTrack(track.clone());
+                    const audio = document.getElementById('audioRoom');
+                    Janus.attachMediaStream(audio, gRemoteRoomStream);
+                },
+                oncleanup: function() {
+                    Janus.debug("Clean up request");
+                }
+            });
+        },
+        error: function(error) {
+            Janus.error(error);
+        },
+        destroyed: function() {
+            Janus.log("Send destroyed, re-initialising");
+            gWebrtcUp = false;
+            gSendMixerHandle = null;
+            gJanusSend = null;
+            sendInit();
+        }
+    });
+}
+
+function receiveInit() {
+    if (gJanus) return;
+    gJanus = new Janus({
+        server: gServer,
+        iceServers: gSettings.iceServers,
+        success: function() {
+            gJanus.attach({
+                // Receive a translation channel stream either relayed from the corresponding translator room or received on Janus via RTP
+                plugin: "janus.plugin.streaming",
+                gOpaqueId: gOpaqueId,
+                iceState: function(state) {
+                    Janus.log("ICE state changed to " + state);
+                },
+                webrtcState: function(on) {
+                    Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
+                },
+                slowLink: function(uplink, lost, mid) {
+                    Janus.warn("Janus reports problems " + (uplink ? "sending" : "receiving") +
+                        " packets on mid " + mid + " (" + lost + " lost packets)");
+                },
+                success: function(pluginHandle) {
+                    gStreamingHandle = pluginHandle;
+                    Janus.log("Plugin attached! (" + gStreamingHandle.getPlugin() + ", id=" + gStreamingHandle.getId() + ")");
+                    pollStatus();
+                },
+                error: function(error) {
+                    Janus.error("Error attaching plugin... " + error);
+                },
+                onmessage: function(msg, jsep) {
+                    Janus.debug("Got message...");
+                    Janus.debug(msg);
+                    if(jsep !== undefined && jsep !== null) {
+                        Janus.debug("Handling SDP as well...");
+                        Janus.debug(jsep);
+                        var stereo = (jsep.sdp.indexOf("stereo=1") !== -1);
+                        gStreamingHandle.createAnswer({
+                            jsep: jsep,
+                            customizeSdp: function(jsep) {
+                                if(stereo && jsep.sdp.indexOf("stereo=1") == -1) {
+                                    // Make sure that our offer contains stereo too
+                                    jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
+                                }
+                            },
+                            // We want recvonly audio and, if negotiated, datachannels
+                            tracks: [
+                                        { type: 'audio', capture: false, recv: true },
+                                        { type: 'video', capture: false, recv: false },
+                                        { type: 'data' }
+                                    ],
+                            success: function(jsep) {
+                                Janus.debug("Got SDP!");
+                                Janus.debug(jsep);
+                                const body = { "request": "start" };
+                                gStreamingHandle.send({"message": body, "jsep": jsep});
+                            },
+                            error: function(error) {
+                                Janus.error("WebRTC error:", error);
+                            }
+                        });
+                    }
+                },
+                // We ignore mid in this application as there is only ever one audio track
+                onremotetrack: function(track,mid,on) {
+                    Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
+                    if(gRemoteStream || track.kind !== "audio")
+                        return;
+                    // We only have one track in this application
+                    if(!on) {
+                            gRemoteStream = null;
+                            return;
+                    }
+                    const audio = document.getElementById('audioStream');
+                    audio.volume = 0;
+                    gRemoteStream = new MediaStream([track]);
+                    gRemoteStream.addTrack(track.clone());
+                    Janus.attachMediaStream(audio, gRemoteStream);
+                    audio.play();
+                    audio.volume = 1;
+                },
+                oncleanup: function() {
+                    Janus.debug("Clean up request");
+                    gRemoteStream = null;
+                    gPlaying = false;
+                }
+            });
+        }
+    });   
 }
 
 function initaliseLocalStorageIfRequired(name) {
@@ -849,8 +857,8 @@ function stopPlay() {
 }
 function stopSend() {
     if (gSending) {
-        const body = { "request": "leave" };
         if (gWebrtcUp) {
+            const body = { "request": "leave" };
             gSendMixerHandle.send({"message": body});
         }
         const vidPlayerTx = document.getElementById('sendingVidOn');
@@ -861,8 +869,6 @@ function stopSend() {
         if (silentPlayer && !silentPlayer.paused) {
             silentPlayer.pause();
         }
-        Janus.stopAllTracks(gSendMixerHandle);
-        updateDisplay();
     }
 }
 function unMuteSend() {
