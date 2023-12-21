@@ -2,7 +2,7 @@ const gBrowserLang = window.navigator.language.substring(0, 2);
 const gDefaultPassword = "secret";
 const gOpaqueId = "streaming-" + Janus.randomString(12);
 const gOpaqueIdSend = "audiobridge-" + Janus.randomString(12);
-const gMaxAudioAgeMs = 2000;
+const gMaxMediaAgeMs = 2000;
 const gLang = (LANG.hasOwnProperty(gBrowserLang)) ? gBrowserLang : 'en';
 const gLangTx = gLang;
 const gErrorMax = 3;
@@ -627,17 +627,19 @@ function pollStatus() {
                                         }
                                     }
                                 }
-                                // Asuming first stream [0] is audio since that is all we are sending
-                                const audioAge = (mp.media[0]) ? mp.media[0].age_ms : 0;
+                                const audioStream = mp.media.find(({mid}) => mid === 'a');
+                                const videoStream = mp.media.find(({mid}) => mid === 'v');
+                                let audioObj = (typeof(audioStream) === 'object')
+                                let videoObj = (typeof(videoStream) === 'object')
+                                const audioAge = (audioStream ? audioStream.age_ms : 0);
+                                const videoAge = (videoStream ? videoStream.age_ms : 0);
                                 Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
                                 const musicChannel = (mp.description.length > 1 && (mp.description.substring(0, 1) === "*"));
                                 newStatus.push({
                                     'name': ((musicChannel) ? (mp.description.substring(1, )) : mp.description),
-                                    'valid': ((audioAge < gMaxAudioAgeMs) && mp.enabled && (mp.media.length > 0)),
+                                    'audioValid': (audioObj && mp.enabled && (audioAge < gMaxMediaAgeMs)),
                                     'music': musicChannel,
-                                    'videoValid': (mp.enabled && (mp.media.length > 0) && mp.media.find(({
-                                        mid
-                                    }) => mid === 'v')),
+                                    'videoValid': (videoObj && mp.enabled && (videoAge < gMaxMediaAgeMs)),
                                     'id': mp.id,
                                     'validTx': validTx,
                                     'freeTx': freeTx,
@@ -722,8 +724,8 @@ function updateDisplay() {
             validTx = false;
         let name = (parseInt(channel) + 1).toString();
 
-        if (gStatus[channel].hasOwnProperty('valid')) {
-            status = gStatus[channel].valid;
+        if (gStatus[channel].hasOwnProperty('audioValid')) {
+            status = gStatus[channel].audioValid;
         }
         if (gStatus[channel].hasOwnProperty("name")) {
             name = gStatus[channel].name;
