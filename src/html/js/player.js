@@ -635,7 +635,7 @@ function pollStatus() {
                                     'name': ((musicChannel) ? (mp.description.substring(1, )) : mp.description),
                                     'valid': ((audioAge < gMaxAudioAgeMs) && mp.enabled && (mp.media.length > 0)),
                                     'music': musicChannel,
-                                    'videoValid': (mp.enabled && (mp.media.length > 1) && mp.media.find(({
+                                    'videoValid': (mp.enabled && (mp.media.length > 0) && mp.media.find(({
                                         mid
                                     }) => mid === 'v')),
                                     'id': mp.id,
