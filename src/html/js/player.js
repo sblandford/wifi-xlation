@@ -1,13 +1,14 @@
-const gBrowserLang = window.navigator.language.substring(0,2);
+const gBrowserLang = window.navigator.language.substring(0, 2);
 const gDefaultPassword = "secret";
 const gOpaqueId = "streaming-" + Janus.randomString(12);
 const gOpaqueIdSend = "audiobridge-" + Janus.randomString(12);
 const gMaxAudioAgeMs = 2000;
-const gLang = (LANG.hasOwnProperty(gBrowserLang))?gBrowserLang:'en';
+const gLang = (LANG.hasOwnProperty(gBrowserLang)) ? gBrowserLang : 'en';
 const gLangTx = gLang;
 const gErrorMax = 3;
 const gMenuScrollTimoutMs = 150;
 const gStatusPollTime = 5000;
+const gDimVolume = 0.05;
 
 let gSettings = {};
 let gServer = "janus";
@@ -21,12 +22,15 @@ let gPlayIntention = false;
 let gSendIntention = false;
 let gMuteIntention = false;
 let gPlaying = false;
+let gVidPlaying = false;
 let gSending = false;
 let gPasswordsTx = {};
 
-let gJanus = null;
-let gJanusSend= null;
+let gJanusReceive = null;
+let gJanusVideoReceive = null;
+let gJanusSend = null;
 let gStreamingHandle = null;
+let gVideoStreamingHandle = null;
 let gSendMixerHandle = null;
 let gMyId = null;
 let gStereo = false;
@@ -34,6 +38,8 @@ let gWebrtcUp = false;
 let gMusicTx = false;
 let gDeviceIdTx = 'default';
 let gRemoteStream = null;
+let gRemoteVidStream = null;
+let gRemoteVidAudioStream = null;
 let gRemoteRoomStream = null;
 let gErrorCount = 0;
 let gUserHasScrolled = false;
@@ -54,12 +60,12 @@ if (!localStorage.debugLevels) {
     }
 }
 
-window.onload = function () {
-    runWithSettings(function () {
+window.onload = function() {
+    runWithSettings(function() {
         janusInit();
         updateDisplay();
         pollStatus();
-        setInterval(timedPollStatus, gStatusPollTime);    
+        setInterval(timedPollStatus, gStatusPollTime);
         // Listen for resize changes
         window.addEventListener("resize", function() {
             // Get screen size (inner/outerWidth, inner/outerHeight)
@@ -69,67 +75,69 @@ window.onload = function () {
                 orientation();
             }
         }, false);
-        orientation ();
-        
+        orientation();
+
         // Play silence on a loop when playing WebRTC audio to keep phone
         // alive when screen goes off.
         // Start/stop WebRTC when this player starts/stops.
         const silentPlayer = document.getElementById('silence');
         if (silentPlayer) {
-            silentPlayer.addEventListener('play', function(){
+            silentPlayer.addEventListener('play', function() {
                 startPlay();
             });
-            silentPlayer.addEventListener('pause', function(){
+            silentPlayer.addEventListener('pause', function() {
                 stopPlay();
             })
         }
         const silentPlayerTx = document.getElementById('silenceTx');
         if (silentPlayerTx) {
-            silentPlayerTx.addEventListener('play', function(){
+            silentPlayerTx.addEventListener('play', function() {
                 startSend();
             });
-            silentPlayerTx.addEventListener('pause', function(){
+            silentPlayerTx.addEventListener('pause', function() {
                 stopSend();
             })
         }
         const chSelectList = document.getElementById('chSelectList');
-        chSelectList.onscroll = function (e) {
+        chSelectList.onscroll = function(e) {
             scrollInputMaskTimer();
         };
         const chSelectListTx = document.getElementById('chSelectListTx')
-        chSelectListTx.onscroll = function (e) {
+        chSelectListTx.onscroll = function(e) {
             scrollInputMaskTimer();
         };
         const micSelectListTx = document.getElementById('micSelectListTx')
-        micSelectListTx.onscroll = function (e) {
+        micSelectListTx.onscroll = function(e) {
             scrollInputMaskTimer();
-        };        
+        };
     });
 };
 
-function scrollInputMaskTimer () {
+function scrollInputMaskTimer() {
     gUserHasScrolled = true;
     if (gHasScrolledTimer) {
         clearTimeout(gHasScrolledTimer);
         gHasScrolledTimer = null;
     }
-    gHasScrolledTimer = setTimeout(function () {
+    gHasScrolledTimer = setTimeout(function() {
         gUserHasScrolled = false;
         gHasScrolledTimer = null;
     }, gMenuScrollTimoutMs);
 }
 
-function jumpBack () {
+function jumpBack() {
     if (gSettings.timeoutUrl !== false) {
         window.location.href = gSettings.timeoutUrl;
     } else {
         window.location.reload();
-    }    
+    }
 }
 
 // If we have lost the server then jump to holding page if it is set
-function reloadOrJumpBack () {
-    fetch("index.html", {cache: "no-store"}).then(function(response) {
+function reloadOrJumpBack() {
+    fetch("index.html", {
+        cache: "no-store"
+    }).then(function(response) {
         return response.text();
     }).then(function(html) {
         if (html.includes("Translation Web Client")) {
@@ -138,12 +146,12 @@ function reloadOrJumpBack () {
         } else {
             jumpBack();
         }
-    }).catch(function (err) {
+    }).catch(function(err) {
         jumpBack();
     });
 }
 
-function getMicDeviceId (callback) {
+function getMicDeviceId(callback) {
     let micDeviceId = 'default';
     Janus.listDevices(function(micDevices) {
         gMicList = JSON.parse(JSON.stringify(micDevices));
@@ -153,58 +161,69 @@ function getMicDeviceId (callback) {
                 if (device.deviceId && (localStorage.micDeviceId === device.deviceId)) {
                     micDeviceId = device.deviceId;
                 }
-            }, { audio: true, video: false });
+            }, {
+                audio: true,
+                video: false
+            });
         }
         gDeviceIdTx = micDeviceId;
         callback(micDeviceId)
-    }, { audio: true, video: false })
+    }, {
+        audio: true,
+        video: false
+    })
 }
 
-function getMicTrack (callback) {
+function getMicTrack(callback) {
     getMicDeviceId(function(micDeviceId) {
         let track = {
-                            type: 'audio',
-                            mid: '0',
-                            capture: {
-                                autoGainControl: true,
-                                latency: 0,
-                                echoCancellation: !gMusicTx,
-                                noiseSuppression: !gMusicTx,
-                                deviceId: {
-                                    exact: micDeviceId
-                                }
-                            },
-                            recv: true
-                    }
+            type: 'audio',
+            mid: '0',
+            capture: {
+                autoGainControl: true,
+                latency: 0,
+                echoCancellation: !gMusicTx,
+                noiseSuppression: !gMusicTx,
+                deviceId: {
+                    exact: micDeviceId
+                }
+            },
+            recv: true
+        }
         callback(track);
     });
 }
 
-function updateLiveMic () {
+function updateLiveMic() {
     getMicTrack(function(track) {
         gSendMixerHandle.replaceTracks({
-            tracks: [ track ],
+            tracks: [track],
             error: function(err) {
                 Janus.error("Error when changing Mic : ", err);
             }
-        });        
+        });
     });
 }
 
-function janusInit () {
+function janusInit() {
     Janus.init({
         debug: gDebugLevels,
         callback: function() {
-            if(!Janus.isWebrtcSupported()) {
+            if (!Janus.isWebrtcSupported()) {
                 Janus.error("No WebRTC support");
                 return;
             }
             // Generate fake empty response
-            gSendMixerHandle = {"send":function (fakeParams) {
-                fakeParams.success({"list":[]});
-            }};
+            gSendMixerHandle = {
+                "send": function(fakeParams) {
+                    fakeParams.success({
+                        "list": []
+                    });
+                }
+            };
             if (!gHideMic) {
                 sendInit();
+                videoReceiveInit();
             }
             receiveInit();
         },
@@ -217,8 +236,10 @@ function janusInit () {
     });
 }
 
-function sendInit () {
-    if (gJanusSend) return;
+function sendInit() {
+    if (gJanusSend) {
+        return;
+    }
     gJanusSend = new Janus({
         server: gServer,
         iceServers: gSettings.iceServers,
@@ -258,19 +279,22 @@ function sendInit () {
                         case "joined":
                             gMyId = msg.id;
                             Janus.log("Successfully joined room " + msg.room + " with ID " + gMyId);
-                            if(!gWebrtcUp) {
+                            if (!gWebrtcUp) {
                                 gWebrtcUp = true;
                                 // Publish our stream
                                 gMusicTx = gStatus[channelIdLookup(msg.room)].music;
                                 getMicTrack(function(track) {
-                                    gSendMixerHandle.createOffer(
-                                    {
+                                    gSendMixerHandle.createOffer({
                                         tracks: [
                                             track,
-                                            { type: 'video', capture: false, recv: false }
+                                            {
+                                                type: 'video',
+                                                capture: false,
+                                                recv: false
+                                            }
                                         ],
                                         customizeSdp: function(jsep) {
-                                            if(gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
+                                            if (gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
                                                 // Make sure that our offer contains gStereo too
                                                 jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
                                             }
@@ -278,9 +302,20 @@ function sendInit () {
                                         success: function(jsep) {
                                             gJespTx = jsep;
                                             Janus.debug("Got SDP!", jsep);
-                                            const publish = { request: "configure", muted: false };
-                                            gSendMixerHandle.send({ message: publish, jsep: jsep });
-                                            },
+                                            const publish = {
+                                                request: "configure",
+                                                muted: false
+                                            };
+                                            gSendMixerHandle.send({
+                                                message: publish,
+                                                jsep: jsep
+                                            });
+                                            // Start video if available
+                                            if (!gVidPlaying && gStatus[channelNumberLookup('Video Channel')].videoValid) {
+                                                gVidPlaying = true;
+                                                loadVideo();
+                                            }
+                                        },
                                         error: function(error) {
                                             Janus.error("WebRTC error:", error);
                                         }
@@ -296,7 +331,7 @@ function sendInit () {
                             Janus.warn("The room has been destroyed!");
                             break;
                         case "event":
-                            if(msg.participants) {
+                            if (msg.participants) {
                                 const list = msg.participants;
                                 Janus.debug("Got a list of participants:", list);
                             } else if (msg.error) {
@@ -318,20 +353,22 @@ function sendInit () {
                             Janus.warn("Unhandled event: " + event);
                             break;
                     }
-                    if(jsep) {
+                    if (jsep) {
                         Janus.debug("Handling SDP as well...", jsep);
-                        gSendMixerHandle.handleRemoteJsep({ jsep: jsep });
+                        gSendMixerHandle.handleRemoteJsep({
+                            jsep: jsep
+                        });
                     }
                 },
-                onlocaltrack: function (track, on) {
+                onlocaltrack: function(track, on) {
 
                 },
                 // We ignore mid in this application as there is only ever one audio track
-                onremotetrack: function(track,mid,on) {
+                onremotetrack: function(track, mid, on) {
                     Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
                     if (track.kind !== "audio")
                         return;
-                    if(!on) {
+                    if (!on) {
                         gRemoteRoomStream = null;
                         gJanusSend.destroy();
                         return;
@@ -361,14 +398,13 @@ function sendInit () {
     });
 }
 
-function receiveInit() {
-    if (gJanus) return;
-    gJanus = new Janus({
+function receiveOjb(isVideo) {
+    return new Janus({
         server: gServer,
         iceServers: gSettings.iceServers,
         success: function() {
-            gJanus.attach({
-                // Receive a translation channel stream either relayed from the corresponding translator room or received on Janus via RTP
+            ((isVideo) ? gJanusVideoReceive : gJanusReceive).attach({
+                // Receive a translation channel stream either relayed from the corresponding translator room or received on Janus via RTP or RTSP
                 plugin: "janus.plugin.streaming",
                 gOpaqueId: gOpaqueId,
                 iceState: function(state) {
@@ -382,8 +418,12 @@ function receiveInit() {
                         " packets on mid " + mid + " (" + lost + " lost packets)");
                 },
                 success: function(pluginHandle) {
-                    gStreamingHandle = pluginHandle;
-                    Janus.log("Plugin attached! (" + gStreamingHandle.getPlugin() + ", id=" + gStreamingHandle.getId() + ")");
+                    if (isVideo) {
+                        gVideoStreamingHandle = pluginHandle;
+                    } else {
+                        gStreamingHandle = pluginHandle;
+                    }
+                    Janus.log("Plugin attached! (" + pluginHandle.getPlugin() + ", id=" + pluginHandle.getId() + ")");
                     pollStatus();
                 },
                 error: function(error) {
@@ -392,29 +432,44 @@ function receiveInit() {
                 onmessage: function(msg, jsep) {
                     Janus.debug("Got message...");
                     Janus.debug(msg);
-                    if(jsep !== undefined && jsep !== null) {
+                    if (jsep !== undefined && jsep !== null) {
                         Janus.debug("Handling SDP as well...");
                         Janus.debug(jsep);
-                        var stereo = (jsep.sdp.indexOf("stereo=1") !== -1);
-                        gStreamingHandle.createAnswer({
+                        let stereo = (jsep.sdp.indexOf("stereo=1") !== -1);
+                        let handle = (isVideo) ? gVideoStreamingHandle : gStreamingHandle;
+                        handle.createAnswer({
                             jsep: jsep,
                             customizeSdp: function(jsep) {
-                                if(stereo && jsep.sdp.indexOf("stereo=1") == -1) {
+                                if (stereo && jsep.sdp.indexOf("stereo=1") == -1) {
                                     // Make sure that our offer contains stereo too
                                     jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
                                 }
                             },
                             // We want recvonly audio and, if negotiated, datachannels
-                            tracks: [
-                                        { type: 'audio', capture: false, recv: true },
-                                        { type: 'video', capture: false, recv: false },
-                                        { type: 'data' }
-                                    ],
+                            tracks: [{
+                                    type: 'audio',
+                                    capture: false,
+                                    recv: true
+                                },
+                                {
+                                    type: 'video',
+                                    capture: false,
+                                    recv: true
+                                },
+                                {
+                                    type: 'data'
+                                }
+                            ],
                             success: function(jsep) {
                                 Janus.debug("Got SDP!");
                                 Janus.debug(jsep);
-                                const body = { "request": "start" };
-                                gStreamingHandle.send({"message": body, "jsep": jsep});
+                                const body = {
+                                    "request": "start"
+                                };
+                                handle.send({
+                                    "message": body,
+                                    "jsep": jsep
+                                });
                             },
                             error: function(error) {
                                 Janus.error("WebRTC error:", error);
@@ -423,31 +478,95 @@ function receiveInit() {
                     }
                 },
                 // We ignore mid in this application as there is only ever one audio track
-                onremotetrack: function(track,mid,on) {
+                onremotetrack: function(track, mid, on) {
                     Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
-                    if(gRemoteStream || track.kind !== "audio")
-                        return;
+                    //if(gRemoteStream || track.kind !== "audio" || track.kind !== "video")
+                    //    return;
                     // We only have one track in this application
-                    if(!on) {
+                    const vidAudio = document.getElementById('videoStreamAudio');
+                    if (!on) {
+                        if (isVideo) {
+                            gRemoteVidAudioStream = null;
+                            gRemoteVidStream = null;
+                        } else {
                             gRemoteStream = null;
-                            return;
+                            vidAudio.volume = 1;
+                        }
+                        updateDisplay();
+                        return;
                     }
-                    const audio = document.getElementById('audioStream');
-                    audio.volume = 0;
-                    gRemoteStream = new MediaStream([track]);
-                    gRemoteStream.addTrack(track.clone());
-                    Janus.attachMediaStream(audio, gRemoteStream);
-                    audio.play();
-                    audio.volume = 1;
+                    if (track.muted) {
+                        return;
+                    }
+                    if (isVideo) {
+                        switch (track.kind) {
+                            case 'audio':
+                                if (!gRemoteVidAudioStream) {
+                                    vidAudio.volume = 0;
+                                    gRemoteVidAudioStream = new MediaStream([track]);
+                                    gRemoteVidAudioStream.addTrack(track.clone());
+                                    Janus.attachMediaStream(vidAudio, gRemoteVidAudioStream);
+                                    vidAudio.play();
+                                    vidAudio.volume = ((gPlaying) ? gDimVolume : 1);
+                                }
+                                break;
+                            case 'video':
+                                if (!gRemoteVidStream) {
+                                    const video = document.getElementById('videoStream');
+                                    gRemoteVidStream = new MediaStream([track]);
+                                    gRemoteVidStream.addTrack(track.clone());
+                                    Janus.attachMediaStream(video, gRemoteVidStream);
+                                    video.play();
+                                    updateDisplay();
+                                }
+                                break;
+                            default:
+                                Janus.warn("Unexpected kind of remnote streaming track :", track.kind);
+                        }
+                    } else {
+                        if (track.kind === 'audio') {
+                            if (!gRemoteStream) {
+                                const audio = document.getElementById('audioStream');
+                                audio.volume = 0;
+                                gRemoteStream = new MediaStream([track]);
+                                gRemoteStream.addTrack(track.clone());
+                                Janus.attachMediaStream(audio, gRemoteStream);
+                                audio.play();
+                                audio.volume = 1;
+                                vidAudio.volume = gDimVolume;
+                            }
+                        } else {
+                            Janus.warn("Unexpected kind of remnote streaming track :", track.kind);
+                        }
+                    }
                 },
                 oncleanup: function() {
                     Janus.debug("Clean up request");
-                    gRemoteStream = null;
-                    gPlaying = false;
+                    if (isVideo) {
+                        gRemoteVidStream = null;
+                        gVidPlaying = false
+                    } else {
+                        gRemoteStream = null;
+                        gPlaying = false;
+                    }
                 }
             });
         }
-    });   
+    });
+}
+
+function receiveInit() {
+    if (gJanusReceive) {
+        return;
+    }
+    gJanusReceive = receiveOjb(false);
+}
+
+function videoReceiveInit() {
+    if (gJanusVideoReceive) {
+        return;
+    }
+    gJanusVideoReceive = receiveOjb(true);
 }
 
 function initaliseLocalStorageIfRequired(name) {
@@ -467,28 +586,35 @@ function initaliseLocalStorageIfRequired(name) {
 }
 
 //Poll status every two seconds
-function pollStatus () {
+function pollStatus() {
     if (gStreamingHandle !== null) {
-        const body = { "request": "list" };
-        gStreamingHandle.send({"message": body,
+        const body = {
+            "request": "list"
+        };
+        gStreamingHandle.send({
+            "message": body,
             success: function(result) {
-                if(result === null || result === undefined) {
-                        alert("Got no response to our query for available RX streams");
+                if (result === null || result === undefined) {
+                    alert("Got no response to our query for available RX streams");
                 } else {
                     const list = result.list;
                     Janus.debug("Got list of streams");
-                    gSendMixerHandle.send({"message": body, 
+                    gSendMixerHandle.send({
+                        "message": body,
                         success: function(result) {
                             let listTx = false;
-                            if(result === null || result === undefined) {
+                            if (result === null || result === undefined) {
                                 alert("Got no response to our query for available TX rooms");
                             } else {
                                 listTx = result.list;
                                 Janus.debug("Got list of rooms");
                             }
                             let newStatus = [];
-                            for(let i=0; i < list.length; i++) {
-                                let mp = list[i], validTx = false, freeTx = true, txParticipants = 0;
+                            for (let i = 0; i < list.length; i++) {
+                                let mp = list[i],
+                                    validTx = false,
+                                    freeTx = true,
+                                    txParticipants = 0;
                                 if (listTx) {
                                     for (let j = 0; j < listTx.length; j++) {
                                         const mpTx = listTx[j];
@@ -496,37 +622,41 @@ function pollStatus () {
                                             Janus.debug("Got match");
                                             validTx = true;
                                             txParticipants = mpTx.num_participants;
-                                            freeTx = (txParticipants <= ((gSendIntention)?1:0));
+                                            freeTx = (txParticipants <= ((gSendIntention) ? 1 : 0));
                                             break;
                                         }
                                     }
                                 }
                                 // Asuming first stream [0] is audio since that is all we are sending
-                                const audioAge = (mp.media[0])?mp.media[0].age_ms:0;
+                                const audioAge = (mp.media[0]) ? mp.media[0].age_ms : 0;
                                 Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
-                                const musicChannel = (mp.description.length > 1 && (mp.description.substring(0,1) === "*"));
-                                newStatus.push({'name': ((musicChannel)?(mp.description.substring(1,)):mp.description),
-                                            'valid':((audioAge < gMaxAudioAgeMs) && (mp.enabled == true)),
-                                            'music': musicChannel,
-                                            'id':mp.id,
-                                            'validTx':validTx,
-                                            'freeTx':freeTx,
-                                            'participantsTx':txParticipants
+                                const musicChannel = (mp.description.length > 1 && (mp.description.substring(0, 1) === "*"));
+                                newStatus.push({
+                                    'name': ((musicChannel) ? (mp.description.substring(1, )) : mp.description),
+                                    'valid': ((audioAge < gMaxAudioAgeMs) && mp.enabled && (mp.media.length > 0)),
+                                    'music': musicChannel,
+                                    'videoValid': (mp.enabled && (mp.media.length > 1) && mp.media.find(({
+                                        mid
+                                    }) => mid === 'v')),
+                                    'id': mp.id,
+                                    'validTx': validTx,
+                                    'freeTx': freeTx,
+                                    'participantsTx': txParticipants
                                 });
                             }
                             // Sort array by channel ID
-                            newStatus.sort((a,b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
+                            newStatus.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
                             // If any change then clone array
                             if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
                                 gStatus = JSON.parse(JSON.stringify(newStatus));
                                 gStatusUpdate = true;
-                                    if (gStatus.length > 0) {
-                                        initaliseLocalStorageIfRequired(gStatus[0].name);
-                                    }
+                                if (gStatus.length > 0) {
+                                    initaliseLocalStorageIfRequired(gStatus[0].name);
+                                }
                                 updateDisplay();
                             }
                         },
-                        error: function (error) {
+                        error: function(error) {
                             Janus.error("Error polling server for TX streams... " + error);
                             gErrorCount++;
                             if (gErrorCount > gErrorMax) {
@@ -536,7 +666,7 @@ function pollStatus () {
                     });
                 }
             },
-            error: function (error) {
+            error: function(error) {
                 Janus.error("Error polling server for RX streams... " + error);
                 gErrorCount++;
                 if (gErrorCount > gErrorMax) {
@@ -547,12 +677,12 @@ function pollStatus () {
     }
 }
 
-function timedPollStatus () {
+function timedPollStatus() {
     if (document.hidden) return true;
     pollStatus();
 }
 
-function channelNameLookup (channel) {
+function channelNameLookup(channel) {
     let name = (parseInt(channel) + 1).toString();
     if ((channel < gStatus.length) && (gStatus[channel].hasOwnProperty("name"))) {
         name = gStatus[channel].name;
@@ -560,7 +690,7 @@ function channelNameLookup (channel) {
     return name;
 }
 
-function channelNumberLookup (name) {
+function channelNumberLookup(name) {
     for (let channel in gStatus) {
         if (gStatus[channel].hasOwnProperty("name")) {
             if (name.toUpperCase() == gStatus[channel].name.toUpperCase()) {
@@ -571,7 +701,7 @@ function channelNumberLookup (name) {
     return -1;
 }
 
-function channelIdLookup (id) {
+function channelIdLookup(id) {
     for (let channel in gStatus) {
         if (gStatus[channel].hasOwnProperty("id")) {
             if (id == gStatus[channel].id) {
@@ -587,7 +717,9 @@ function updateDisplay() {
     let listHtmlTx = '';
     let micListHtmlTx = '';
     for (let channel = 0; channel < gStatus.length; channel++) {
-        let status = false, freeTx = true, validTx = false;
+        let status = false,
+            freeTx = true,
+            validTx = false;
         let name = (parseInt(channel) + 1).toString();
 
         if (gStatus[channel].hasOwnProperty('valid')) {
@@ -595,6 +727,10 @@ function updateDisplay() {
         }
         if (gStatus[channel].hasOwnProperty("name")) {
             name = gStatus[channel].name;
+            // "Video channel" is a hidden reserved phrase for the video channel
+            if (name.toLowerCase() === 'video channel') {
+                continue;
+            }
         }
         if (gStatus[channel].hasOwnProperty('freeTx')) {
             freeTx = gStatus[channel].freeTx;
@@ -605,10 +741,10 @@ function updateDisplay() {
 
         if (status) {
             listHtml += "<a href=\"#\"" +
-            " class=\"chNameNormal\"" +
-            " onclick=\"onclickChannel(" + channel + ");\"" +
-            " ontouchend=\"ontouchendChannel(" + channel + ");\"" +
-            ">" + name + "</a>\n";
+                " class=\"chNameNormal\"" +
+                " onclick=\"onclickChannel(" + channel + ");\"" +
+                " ontouchend=\"ontouchendChannel(" + channel + ");\"" +
+                ">" + name + "</a>\n";
         } else {
             if (!gSettings.hideOffAir) {
                 listHtml += "<a href=\"#\" class=\"disabled chNameNormal\">" + name + "</a>\n";
@@ -616,11 +752,11 @@ function updateDisplay() {
         }
 
         if (validTx) {
-            listHtmlTx +="<a href=\"#\"" +
-            " class=\"" + ((freeTx)?"chNameNormal":"chNameBusy") + "\"" +
-            " onclick=\"onclickChannelTx(" + channel + ");\"" +
-            " ontouchend=\"ontouchendChannelTx(" + channel + ");\"" +
-            ">" + name + "</a>\n";
+            listHtmlTx += "<a href=\"#\"" +
+                " class=\"" + ((freeTx) ? "chNameNormal" : "chNameBusy") + "\"" +
+                " onclick=\"onclickChannelTx(" + channel + ");\"" +
+                " ontouchend=\"ontouchendChannelTx(" + channel + ");\"" +
+                ">" + name + "</a>\n";
         } else {
             listHtmlTx += "<a href=\"#\" class=\"disabled\">" + name + "</a>\n";
         }
@@ -636,10 +772,10 @@ function updateDisplay() {
                 classSet('playImg', 'greyVid', !status);
             }
             if (status) {
-                startStopButtonId.innerText = LANG[gLang][(gPlayIntention)?'stop':'start'];
-               startStopButtonId.disabled = false;
+                startStopButtonId.innerText = LANG[gLang][(gPlayIntention) ? 'stop' : 'start'];
+                startStopButtonId.disabled = false;
             } else {
-                startStopButtonId.innerText = LANG[gLang][(gPlayIntention)?'stop':'start'];
+                startStopButtonId.innerText = LANG[gLang][(gPlayIntention) ? 'stop' : 'start'];
                 startStopButtonId.disabled = !gPlayIntention;
             }
 
@@ -647,7 +783,7 @@ function updateDisplay() {
         if (name == localStorage.channelTx) {
             const chNameId = document.getElementById('chNameTx');
             const startMuteButtonId = document.getElementById('startMuteButtonTx');
-            const startMuteButtonTextEng = (gMuteIntention)?"unmute":((gSendIntention)?'mute':'broadcast');
+            const startMuteButtonTextEng = (gMuteIntention) ? "unmute" : ((gSendIntention) ? 'mute' : 'broadcast');
             const startMuteButtonText = LANG[gLang][startMuteButtonTextEng];
             chNameId.innerHTML = name.replaceAll(" ", "<br />");
             classSet('chNameTx', 'chNameDead', !validTx);
@@ -661,7 +797,7 @@ function updateDisplay() {
                 startMuteButtonId.disabled = false;
             } else {
                 classOut('chNameTx', 'chNameBusy');
-                startMuteButtonId.innerText = LANG[gLang][(gSendIntention)?'mute':'broadcast'];
+                startMuteButtonId.innerText = LANG[gLang][(gSendIntention) ? 'mute' : 'broadcast'];
                 startMuteButtonId.disabled = !gSendIntention;
             }
         }
@@ -669,8 +805,8 @@ function updateDisplay() {
     gMicList.forEach(function(device) {
         if (device.deviceId && (device.kind === 'audioinput')) {
             let micActive = (gDeviceIdTx === device.deviceId);
-            micListHtmlTx +="<a href=\"#\"" +
-                " class=\"" + (micActive?"micActive":"micName") + "\"" +
+            micListHtmlTx += "<a href=\"#\"" +
+                " class=\"" + (micActive ? "micActive" : "micName") + "\"" +
                 " onclick=\"onclickMicTx('" + device.deviceId + "');\"" +
                 " ontouchend=\"ontouchendMicTx('" + device.deviceId + "');\"" +
                 ">" + device.label + "</a>\n";
@@ -712,11 +848,13 @@ function updateDisplay() {
     classSet('imgMuteTx', 'hideItem', !gMuteIntention);
     classSet('imgMuteTx', 'lampStopped', !gSending);
     classSet('imgMuteTx', 'lampStartedTx', gSending);
-    
-    document.getElementById('stopButtonTx').style.visibility = (gSendIntention)?"visible":"hidden";
+
+    document.getElementById('stopButtonTx').style.visibility = (gSendIntention) ? "visible" : "hidden";
     classSet('micDiv', 'hideItem', gHideMic);
     classSet('micImg', 'iconDisabled', gSendIntention);
     classSet('keyImg', 'iconDisabled', gSendIntention);
+
+    classSet('videoStream', 'hideItem', (gRemoteVidStream === null))
 }
 
 //Drop down menu related
@@ -724,47 +862,50 @@ function chSelect() {
     gUserHasScrolled = false;
     document.getElementById('chSelectList').classList.toggle("show");
 }
+
 function chSelectTx() {
     gUserHasScrolled = false;
     document.getElementById('chSelectListTx').classList.toggle("show");
 }
+
 function micSelectTx() {
     // Update mic list before showing
     Janus.listDevices(function(micDevices) {
-            gMicList = JSON.parse(JSON.stringify(micDevices));
-            gUserHasScrolled = false;
-            updateDisplay();
-            document.getElementById('micSelectListTx').classList.toggle("show");
-        },
-        { audio: true, video: false}
-    );
+        gMicList = JSON.parse(JSON.stringify(micDevices));
+        gUserHasScrolled = false;
+        updateDisplay();
+        document.getElementById('micSelectListTx').classList.toggle("show");
+    }, {
+        audio: true,
+        video: false
+    });
 }
 
-function vanishDropdown (className) {
-        const dropdowns = document.getElementsByClassName(className);
-        for (let i = 0; i < dropdowns.length; i++) {
-            const openDropdown = dropdowns[i];
-            if (openDropdown.classList.contains('show')) {
+function vanishDropdown(className) {
+    const dropdowns = document.getElementsByClassName(className);
+    for (let i = 0; i < dropdowns.length; i++) {
+        const openDropdown = dropdowns[i];
+        if (openDropdown.classList.contains('show')) {
             openDropdown.classList.remove('show');
-            }
-        }    
+        }
+    }
 }
 
 // Close the dropdown menu if the user clicks outside of it
-function positionTests (event) {
-    if (!event.target.matches('.dropbtn') && 
-            !event.target.matches('.dropdown-content.show') && 
-            !event.target.matches('a.chNameNormal')) {
+function positionTests(event) {
+    if (!event.target.matches('.dropbtn') &&
+        !event.target.matches('.dropdown-content.show') &&
+        !event.target.matches('a.chNameNormal')) {
         vanishDropdown("dropdown-content");
     }
-    if (!event.target.matches('.dropbtnTx') && 
-            !event.target.matches('a.chNameNormal')) {
+    if (!event.target.matches('.dropbtnTx') &&
+        !event.target.matches('a.chNameNormal')) {
         vanishDropdown("dropdown-contentTx");
     }
     if (!event.target.matches('.micSelDiv') &&
-            !event.target.matches('a.micNameNormal')) {
+        !event.target.matches('a.micNameNormal')) {
         vanishDropdown("dropdown-contentMicTx");
-    }      
+    }
     //Hide QR code if showing
     if (!event.target.matches('.qrBtn')) {
         classOut('qrBox', 'qrShow');
@@ -782,18 +923,42 @@ window.onclick = function(event) {
 }
 
 
-function loadAudio () {
-    const body = { "request": "watch", "id": gStatus[channelNumberLookup (localStorage.channel)].id };
+function loadAudio() {
+    const body = {
+        "request": "watch",
+        "id": gStatus[channelNumberLookup(localStorage.channel)].id
+    };
     if (gStreamingHandle) {
-        gStreamingHandle.send({"message": body});
+        gStreamingHandle.send({
+            "message": body
+        });
     }
 }
 
-function loadSendRoom () {
-    const register = { request: "join", codec: "opus", display: "translator", pin: gPasswordsTx[localStorage.channelTx] };
-    register.room = gStatus[channelNumberLookup (localStorage.channelTx)].id;
+function loadSendRoom() {
+    const register = {
+        request: "join",
+        codec: "opus",
+        display: "translator",
+        pin: gPasswordsTx[localStorage.channelTx]
+    };
+    register.room = gStatus[channelNumberLookup(localStorage.channelTx)].id;
     if (gSendMixerHandle) {
-        gSendMixerHandle.send({ message: register });
+        gSendMixerHandle.send({
+            message: register
+        });
+    }
+}
+
+function loadVideo() {
+    const body = {
+        "request": "watch",
+        "id": gStatus[channelNumberLookup('Video Channel')].id
+    };
+    if (gVideoStreamingHandle) {
+        gVideoStreamingHandle.send({
+            "message": body
+        });
     }
 }
 
@@ -812,6 +977,7 @@ function startPlay() {
         updateDisplay();
     }
 }
+
 function startSend() {
     if (!gSending) {
         loadSendRoom();
@@ -827,8 +993,12 @@ function startSend() {
         updateDisplay();
     }
 }
+
 function muteSend() {
-    const body = { "request": "configure", "muted": true };
+    const body = {
+        "request": "configure",
+        "muted": true
+    };
     const vidPlayerMtTx = document.getElementById('sendingVidMute');
     const vidPlayerTx = document.getElementById('sendingVidOn');
     if (vidPlayerTx) {
@@ -837,13 +1007,19 @@ function muteSend() {
     if (vidPlayerMtTx && gSettings.videoScreenKeeperTx) {
         vidPlayerMtTx.play();
     }
-    gSendMixerHandle.send({"message": body});
+    gSendMixerHandle.send({
+        "message": body
+    });
     updateDisplay();
 }
 
 function stopPlay() {
-    const body = { "request": "stop" };
-    gStreamingHandle.send({"message": body});
+    const body = {
+        "request": "stop"
+    };
+    gStreamingHandle.send({
+        "message": body
+    });
     gStreamingHandle.hangup();
     const vidPlayer = document.getElementById('playVid');
     if (vidPlayer) {
@@ -855,11 +1031,25 @@ function stopPlay() {
     }
     updateDisplay();
 }
+
 function stopSend() {
+    if (gVidPlaying) {
+        const body = {
+            "request": "stop"
+        };
+        gVideoStreamingHandle.send({
+            "message": body
+        });
+        gVideoStreamingHandle.hangup();
+    }
     if (gSending) {
         if (gWebrtcUp) {
-            const body = { "request": "leave" };
-            gSendMixerHandle.send({"message": body});
+            const body = {
+                "request": "leave"
+            };
+            gSendMixerHandle.send({
+                "message": body
+            });
         }
         const vidPlayerTx = document.getElementById('sendingVidOn');
         if (vidPlayerTx) {
@@ -870,9 +1060,14 @@ function stopSend() {
             silentPlayer.pause();
         }
     }
+    updateDisplay();
 }
+
 function unMuteSend() {
-    const body =  { "request": "configure", "muted": false };
+    const body = {
+        "request": "configure",
+        "muted": false
+    };
     const vidPlayerMtTx = document.getElementById('sendingVidMute');
     const vidPlayerTx = document.getElementById('sendingVidOn');
     if (vidPlayerTx && gSettings.videoScreenKeeperTx) {
@@ -881,7 +1076,9 @@ function unMuteSend() {
     if (vidPlayerMtTx) {
         vidPlayerMtTx.pause();
     }
-    gSendMixerHandle.send({"message": body});
+    gSendMixerHandle.send({
+        "message": body
+    });
     updateDisplay();
 }
 
@@ -891,23 +1088,26 @@ function onclickStart() {
         startPlay();
     }
 }
+
 function onclickStartTx() {
     if (!mobileAndTabletcheck()) {
         startSend();
     }
 }
+
 function ontouchendStart() {
     if (mobileAndTabletcheck() && !document.getElementById('startStopButton').disabled) {
         startPlay();
     }
 }
+
 function ontouchendStartTx() {
     if (mobileAndTabletcheck() && !document.getElementById('startStopButtonTx').disabled) {
         startSend();
     }
 }
 
-function channelEnact (channel) {
+function channelEnact(channel) {
     vanishDropdown("dropdown-content");
     localStorage.channel = channelNameLookup(channel);
     updateDisplay();
@@ -921,17 +1121,17 @@ function channelEnact (channel) {
                 clearInterval(waitForStop);
             }
         }, 500);
-    }    
+    }
 }
 
-function channelEnactTx (channel) {
+function channelEnactTx(channel) {
     vanishDropdown("dropdown-contentTx");
     localStorage.channelTx = channelNameLookup(channel);
     if (!gPasswordsTx[localStorage.channelTx]) {
         gPasswordsTx[localStorage.channelTx] = gDefaultPassword;
         localStorage.passwordsTx = JSON.stringify(gPasswordsTx);
     }
-    updateDisplay();   
+    updateDisplay();
 }
 
 function micEnactTx(deviceId) {
@@ -947,15 +1147,17 @@ function onclickChannel(channel) {
         channelEnact(channel);
     }
 }
+
 function onclickChannelTx(channel) {
     if (!mobileAndTabletcheck()) {
         channelEnactTx(channel);
     }
 }
+
 function onclickMicTx(deviceId) {
     if (!mobileAndTabletcheck()) {
         micEnactTx(deviceId);
-    }    
+    }
 }
 
 function ontouchendChannel(channel) {
@@ -964,16 +1166,18 @@ function ontouchendChannel(channel) {
     }
     gUserHasScrolled = false;
 }
+
 function ontouchendChannelTx(channel) {
     if (mobileAndTabletcheck() && !gUserHasScrolled) {
         channelEnactTx(channel);
     }
     gUserHasScrolled = false;
 }
+
 function ontouchendMicTx(deviceId) {
     if (mobileAndTabletcheck()) {
         micEnactTx(deviceId);
-    }    
+    }
 }
 
 // The main start/stop button handler
@@ -1027,12 +1231,13 @@ function clickSenderStopEnact() {
         Janus.debug("Stop on clickSenderStopEnact");
         stopSend();
         gSending = false;
+        gVidPlaying = false;
         // Need to re-update display to reflect not sending flag
         updateDisplay();
     }
 }
 
-function authorisationFail () {
+function authorisationFail() {
     clickSenderStopEnact();
     // (Re)Trigger warning message fade in/out
     const passBox = document.getElementById('passFailBox');
@@ -1069,26 +1274,28 @@ function toggleTxPanel() {
     // Only allow TX menu to be hidden if not broadcasting
     if (!gSendIntention || document.getElementById('panelTx').classList.contains('hideItem')) {
         document.getElementById('panelTx').classList.toggle('hideItem');
-        orientation ();
+        orientation();
     }
 }
-function sizeRx (full) {
+
+function sizeRx(full) {
     classSet('tableRx', 'panelHeightHalf', !full);
     classSet('tableRx', 'panelHeightFull', full);
-    classSet('chSelectList', 'menuHeightHalf',!full);
-    classSet('chSelectList', 'menuHeightFull',full);
+    classSet('chSelectList', 'menuHeightHalf', !full);
+    classSet('chSelectList', 'menuHeightFull', full);
 }
-function sizeTx (full) {
+
+function sizeTx(full) {
     classSet('tableTx', 'panelHeightHalf', !full);
     classSet('tableTx', 'panelHeightFull', full);
-    classSet('chSelectListTx', 'menuHeightHalf',!full);
-    classSet('chSelectListTx', 'menuHeightFull',full);
-    classSet('micSelectListTx', 'menuHeightHalf',!full);
-    classSet('micSelectListTx', 'menuHeightFull',full);    
+    classSet('chSelectListTx', 'menuHeightHalf', !full);
+    classSet('chSelectListTx', 'menuHeightFull', full);
+    classSet('micSelectListTx', 'menuHeightHalf', !full);
+    classSet('micSelectListTx', 'menuHeightFull', full);
 }
 
 // What happens when orientiation changes depends on whether TX panel is visible
-function orientation () {
+function orientation() {
     const txHidden = document.getElementById('panelTx').classList.contains('hideItem');
     if (gPortrate) {
         if (txHidden) {
@@ -1125,7 +1332,7 @@ function passCancel() {
     passClose();
 }
 
-function passOK () {
+function passOK() {
     const passInput = document.getElementById('password');
     gPasswordsTx[localStorage.channelTx] = passInput.value;
     localStorage.passwordsTx = JSON.stringify(gPasswordsTx);
@@ -1145,7 +1352,7 @@ function passwordKeyUp(event) {
     }
 }
 
-function passShow () {
+function passShow() {
     const pwBox = document.getElementById('password');
     if (pwBox.type === 'password') {
         pwBox.type = 'text';

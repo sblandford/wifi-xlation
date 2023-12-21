@@ -26,13 +26,7 @@ ENV MULTICAST_IP4=
 ENV HIDE_MIC=false
 ENV NAT_1_1_MAPPING=
 
-COPY src/html/ /var/www/html/
-COPY src/conf/languages.conf /etc/languages.conf
-COPY src/bin/xlation.sh /usr/local/bin/xlation.sh
-COPY src/bin/stats.sh /usr/local/bin/stats.sh
 RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
-RUN chmod 0755 /usr/local/bin/xlation.sh
-RUN chmod 0755 /usr/local/bin/stats.sh
 RUN apt update -y && apt install -y \
     janus \
     libjs-janus-gateway \
@@ -43,6 +37,12 @@ RUN apt update -y && apt install -y \
     nano \
     s3cmd \
     && rm -rf /var/lib/apt/lists/*
+COPY src/html/ /var/www/html/
+COPY src/conf/languages.conf /etc/languages.conf
+COPY src/bin/xlation.sh /usr/local/bin/xlation.sh
+COPY src/bin/stats.sh /usr/local/bin/stats.sh
+RUN chmod 0755 /usr/local/bin/xlation.sh
+RUN chmod 0755 /usr/local/bin/stats.sh
 RUN cp /usr/share/javascript/janus-gateway/janus.js /var/www/html/js/janus.js
 RUN if [ -f /var/www/html/js/settings.js ];then /bin/rm -f /var/www/html/js/settings.js;fi
 

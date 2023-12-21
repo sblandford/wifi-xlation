@@ -76,7 +76,6 @@ button.tx, button.rx {
     min-width: 10em;
     /*border: none;*/
     border: 0.2em solid DodgerBlue;
-    
     cursor: pointer;
 }
 /* Dropdown button on hover & focus */
@@ -100,7 +99,7 @@ button.tx, button.rx {
     background-color: DarkBlue;
     min-width: 15em;
     box-shadow: 0em 0.5em 1em 0em rgba(0,0,0,0.2);
-    z-index: 1;
+    z-index: 2;
     border: 0.2em solid DodgerBlue;
     overflow: auto;
 }
@@ -450,4 +449,19 @@ div.stat {
 
 .sw label:active:after {
     width: 13em;
+}
+
+.videoView {
+    top: -10%;
+    margin: auto;
+    position: relative;
+    z-index: 1;
+    overflow: auto;
+    /*background-color: DarkBlue;
+    box-shadow: 0em 0.5em 1em 0em rgba(0,0,0,0.2);=
+    border: 0.2em solid DodgerBlue;*/
+}
+
+.rxVid {
+    height: 10em;
 }

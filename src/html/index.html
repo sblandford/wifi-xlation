@@ -12,14 +12,14 @@
         <meta http-equiv="pragma" content="no-cache" />
 
         <title>Translation Web Client</title>
-        <link rel="stylesheet" type="text/css" href="css/player.css?v=7">
+        <link rel="stylesheet" type="text/css" href="css/player.css?v=8">
 
 
         <script type="text/javascript" src="js/adapter.min.js" ></script>
         <script type="text/javascript" src="js/janus.js?v5" ></script>
         <script src="js/lang.js?v1"></script>
         <script src="js/common.js?v6"></script>
-        <script src="js/player.js?v15"></script>
+        <script src="js/player.js?v16"></script>
     </head>
     <body class="body">
     <div class="page">
@@ -42,9 +42,13 @@
                                 <tr class="rx stat"><td class="rx">
                                     <div class="rx stat" id="stat">
                                     ----
-                                    </div>
+                                    </div>                                  
                                 </td></tr>
                                 <tr class="rx"><td class="rx">
+                                    <div class="rx videoView">
+                                        <video class="rxVid" autoplay controls id="videoStream">
+                                        </video>
+                                    </div>                    
                                     <div class="rx lampStopped" id="vidDiv">
                                         <!-- Video can be used to keep the display on. Unfortunately some phones stop playing audio consistently when the screen is off -->
                                         <video class="greyVid" loop  disableRemotePlayback playsinline id="playVid">
@@ -55,7 +59,7 @@
                                         <img class="greyVid" src="img/green.png" id="playImg">
                                     </div>
                                 </td></tr>
-                                <tr class="rx"><td class="rx">
+                                <tr class="rx"><td class="rx">                                  
                                     <div class="rx">
                                         <button onclick="startStopPlayerClick();" ontouchend="startStopPlayerTouchend();" class="rx startStopBtn" id="startStopButton" disabled>Start</button>
                                     </div>
@@ -160,11 +164,12 @@
             Unauthorised
         </div>
         <div id="stream">
+            <audio id="videoStreamAudio" autoplay playsinline/>
             <audio id="audioStream" autoplay playsinline/>
             <audio id="audioRoom" autoplay playsinline/>
             <audio id="silence" src="media/silence.mp3" loop playsinline/>
             <audio id="silenceTx" src="media/silence.mp3" loop playsinline/>
-        </div>
+        </div>      
     </div>
 </body>
 </html>

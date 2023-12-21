@@ -364,21 +364,89 @@ rtp_host_ip="0.0.0.0"
 if [[ ${#MULTICAST_IP4} -gt 4 ]]; then
     rtp_host_ip="$MULTICAST_IP4"
     audiomcast="audiomcast = \"$MULTICAST_IP4\""$'\n'"    "
-
+    videomcast="videomcast = \"$MULTICAST_IP4\""$'\n'"    "
 fi
 # Create the language stream entries
 IFS=$'\n'
 id=0
 for line in $( grep -P -v "^\s*#" /etc/languages.conf | tr -d "\r" ); do
-    port=$( echo "$line" | cut -d "," -f 1 )
+    port1=$( echo "$line" | cut -d "," -f 1 )
+    port2="0000"
     lang=$( echo "$line" | cut -d "," -f 2 )
     pin=$( echo "$line"  | cut -d "," -f 3 )
-    if [[ ${#port} -lt 4 ]] || [[ ${#lang} -lt 1 ]] || [[ ${#pin} -lt 1 ]]; then
+    # Two ports given?
+    if [[ "$port1" =~ \+ ]]; then
+        port2=$( echo "$port1" | cut -d "+" -f 2 )
+        port1=$( echo "$port1" | cut -d "+" -f 1 )
+    fi
+    # "Video channel" is a reserved phrase
+    if [[ ${#port1} -lt 4 ]] || [[ ${#port2} -lt 4 ]] || [[ ${#lang} -lt 1 ]] || [[ ${#pin} -lt 1 ]]; then
+        echo "Invalid languages.conf line : $line"
         continue
     fi
     # "secret" line must come after "id" line for stats.sh to work
     # The secret must also be in quotes
-    echo "
+    # The port1 number, 0000, indicates the video channel
+    if [[ $port1 == "0000" ]]; then
+        if grep -iF "\"video channel\"" /etc/janus/janus.plugin.streaming.jcfg; then
+            echo "Ingoring more than one specified video channel"
+            continue
+        fi
+        echo "
+Video-$(( id + 1 )): {
+    description = \"Video Channel\"
+    secret = \"$RANDOM\"
+    audio = true
+    video = true
+    type = \"rtsp\"
+    id = $(( id + 1 ))
+    url = \"$lang\"
+    rtsp_failcheck = false
+    rtsp_quirk = true
+    rtsp_reconnect_delay = 5
+    rtsp_session_timeout = 3
+    rtsp_timeout = 10
+    rtsp_conn_timeout = 5"    >> /etc/janus/janus.plugin.streaming.jcfg
+        # If username/password given then include in config
+        if [[ "$pin" =~ : ]]; then
+            echo "    rtsp_user = $( echo "$pin" | cut -d ":" -f 1 )
+    rtsp_pwd = $( echo "$pin" | cut -d ":" -f 2 )"    >> /etc/janus/janus.plugin.streaming.jcfg
+        fi
+        echo "}"  >> /etc/janus/janus.plugin.streaming.jcfg
+    elif [[ ${lang,,} == "video channel" ]]; then
+        if grep -iF "\"video channel\"" /etc/janus/janus.plugin.streaming.jcfg; then
+            echo "Ingoring more than one specified video channel"
+            continue
+        fi
+        if [[ "$port2" == "0000" ]]; then
+            unset porta
+            portv=$port1
+        else
+            porta=$port1
+            portv=$port2
+        fi
+        echo "
+Video-$(( id + 1 )): {
+    type = \"rtp\"
+    id = $(( id + 1 ))
+    secret = \"$RANDOM\"
+    description = \"Video Channel\"
+    video = true
+    videoport = $portv
+    videocodec = \"$pin\"
+    $videomcast""videopt = 96" >> /etc/janus/janus.plugin.streaming.jcfg
+        if [[ $porta ]]; then
+            echo "    audio = true
+    audioport = $porta
+    $audiomcast""audiopt = 96
+    audiofmtp = \"sprop-stereo=1\"
+    audiortpmap = \"opus/48000/2\"" >> /etc/janus/janus.plugin.streaming.jcfg
+        else
+            echo "    audio = false" >> /etc/janus/janus.plugin.streaming.jcfg
+        fi
+        echo "}" >> /etc/janus/janus.plugin.streaming.jcfg
+    else
+        echo "
 Language-$(( id + 1 )): {
     type = \"rtp\"
     id = $(( id + 1 ))
@@ -386,11 +454,12 @@ Language-$(( id + 1 )): {
     description = \"$lang\"
     audio = true
     video = false
-    audioport = $port
+    audioport = $port1
     $audiomcast""audiopt = 96
     audiofmtp = \"sprop-stereo=1\"
     audiortpmap = \"opus/48000/2\"
 }" >> /etc/janus/janus.plugin.streaming.jcfg
+    fi
     echo "
 room-$(( id + 1 )): {
     description = \"$lang\"
@@ -403,25 +472,12 @@ room-$(( id + 1 )): {
     audio_level_average = 10
     rtp_forward_host = \"$rtp_host_ip\"
     rtp_forward_host_family = \"ipv4\"
-    rtp_forward_port = $port
+    rtp_forward_port = $port1
     rtp_forward_codec = \"opus\"
     rtp_forward_ptype = 96
 }" >> /etc/janus/janus.plugin.audiobridge.jcfg
     id=$(( id + 1 ))
 done
-    echo "
-room-$(( id + 1 )): {
-    description = \"RTSP video\"
-    secret = \"$RANDOM\"
-    audio = true
-    video = true
-    type = \"rtsp\"
-    url = \"rtsp://localhost:8554/mystream\"
-    rtsp_reconnect_delay = 5
-    rtsp_session_timeout = 3
-    rtsp_timeout = 10
-    rtsp_conn_timeout = 5
-}" >> /etc/janus/janus.plugin.streaming.jcfg
 
 # Disable unwanted plugins
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_voicemail.*/\1\2\"libjanus_voicemail.so,libjanus_echotest.so,libjanus_duktape.so,libjanus_textroom.so,libjanus_sip.so,libjanus_recordplay.so,libjanus_videocall.so,libjanus_lua.so,libjanus_videoroom.so,libjanus_nosip.so\"/" /etc/janus/janus.jcfg

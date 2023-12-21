@@ -100,14 +100,53 @@ If set, the nat_1_1_mapping is set to the given IP address and keep_private_host
 #### Default:  
 ```
 #RTP Port,Language,Translator password
-5006,*Stage,secret
-5008,English,secret
-5010,Français,secret
-5012,Deutsch,secret
-5014,Español,secret
+5006+5008,Video channel,vp8
+5010,*Stage,secret
+5012,English,secret
+5014,Français,secret
+5016,Deutsch,secret
+5018,Español,secret
 ```
 
 The file that specifies the languages and passwords. It is highly recommended to at least change the passwords from "secret" otherwise, by default, anyone can become an instant translator resulting in chaos.
 
 If a channel is going to be used for music or if the echo cancellation and noise reduction is not required, then preprend an asterisk to the language name, e.g. *Stage. This will modify the behaviour of the broadcast to switch off the echo cancellation and noise reduction.
+
+#### The video channel
+
+It is possible to send a video channel to the translators so that they can see what is going on if they are not in the same room or operating remotely e.g via a VPN. There are three ways to specify the video channel.
+
+The channel becomes visible to the translator once the translator starts broadcasting.
+
+If the translator is working over a VPN, for example, then it is especially recommended to keep the video picture size small and the video bandwidth low to prevent disruption to the audio to and from the translator. This also applies if the translators are known to be using small devices such as phones where the picture will be small anyway. If, however, the translators are on the same LAN and are using HD monitors then maybe more bandwidth and picture size would be justified.
+
+The video will appear in the Receive part of the web page and has standard HTML5 controls visible including full screen. Most phones will automatically switch to full screen mode if the phone is positioned horizontally.
+
+The video channel is hidden from the channel lists since it is not intended for viewing except by translators.
+
+##### Video RTP the reserved language name, "Video Channel"
+
+The video is sent to the specified port using the codec specified in the Translator Password column. The video codec must be VP8 or VP9.
+
+```
+5016,Video channel,vp8
+```
+
+##### Audio and video RTP the reserved language name, "Video Channel"
+
+```
+5016+5018,Video channel,vp8
+```
+
+The audio is sent to the first specified port and the video is sent to the second specified port. This enables the stage sound and video to appear in sync to the translator, which it might not do if they just watch the video and play the "Stage" audio channel together.
+
+If the translator is not translating from the stage but from another language, in relay, then when they play the language they wish to translate from the audio from the video channel is dimmed so that they can hear it in the background.
+
+##### Video, and optionally audio, pulled from an RTSP server
+
+```
+0000,rtsp://localhost:8554/mystream,null
+```
+
+If a port number of 0000 is given, then an RTSP location can be specified in the Language name column. This should not be in quotes. The codecs supported are Opus for the audio and VP8/VP9 for the video. Unfortunately, this will not work directly from a streaming camera since they will most likely be streaming using H264/H265 and AAC codecs.
 
