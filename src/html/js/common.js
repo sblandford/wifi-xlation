@@ -60,12 +60,12 @@ function classOut (id, className) {
     const element = document.getElementById(id);
     if (element !== null) {
         const classList = element.classList;
-        if (classList.contains(className)) {
+        while (classList.contains(className)) {
             classList.remove(className);
         }
     } else {
         console.error("Element id not found : " + id);
-    }
+    }    
 }
 
 function classSet (id, className, state) {
