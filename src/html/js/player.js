@@ -36,7 +36,6 @@ let gMyId = null;
 let gStereo = false;
 let gWebrtcUp = false;
 let gMusicTx = false;
-let gDeviceIdTx = 'default';
 let gRemoteStream = null;
 let gRemoteVidStream = null;
 let gRemoteVidAudioStream = null;
@@ -62,6 +61,9 @@ if (!localStorage.debugLevels) {
 
 window.onload = function() {
     runWithSettings(function() {
+        if (!localStorage.micDeviceId) {
+            localStorage.micDeviceId = 'default';
+        }
         janusInit();
         updateDisplay();
         pollStatus();
@@ -166,7 +168,7 @@ function getMicDeviceId(callback) {
                 video: false
             });
         }
-        gDeviceIdTx = micDeviceId;
+        localStorage.micDeviceId = micDeviceId;
         callback(micDeviceId)
     }, {
         audio: true,
@@ -808,7 +810,7 @@ function updateDisplay() {
     }
     gMicList.forEach(function(device) {
         if (device.deviceId && (device.kind === 'audioinput')) {
-            let micActive = (gDeviceIdTx === device.deviceId);
+            let micActive = (localStorage.micDeviceId === device.deviceId);
             micListHtmlTx += "<a href=\"#\"" +
                 " class=\"" + (micActive ? "micActive" : "micName") + "\"" +
                 " onclick=\"onclickMicTx('" + device.deviceId + "');\"" +
@@ -876,6 +878,21 @@ function micSelectTx() {
     // Update mic list before showing
     Janus.listDevices(function(micDevices) {
         gMicList = JSON.parse(JSON.stringify(micDevices));
+        let hasDefault = false;
+        gMicList.forEach(function(device) {
+            if (device.deviceId && (device.deviceId.toLowerCase() === 'default') && (device.kind === 'audioinput')) {
+                hasDefault = true;
+            }
+        });
+        // Add a "Default" device if none returned. No deviceId is requested if a default device selected.
+        if (!hasDefault) {
+            gMicList.unshift({
+                deviceId: 'default',
+                groupId: '',
+                kind: 'audioinput',
+                label: 'Default'
+            });
+        }
         gUserHasScrolled = false;
         updateDisplay();
         document.getElementById('micSelectListTx').classList.toggle("show");
