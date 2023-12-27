@@ -184,11 +184,13 @@ function getMicTrack(callback) {
                 latency: 0,
                 echoCancellation: !gMusicTx,
                 noiseSuppression: !gMusicTx,
-                deviceId: {
-                    exact: micDeviceId
-                }
             },
             recv: true
+        };
+        if (micDeviceId.toLowerCase() !== 'default') {
+            track.deviceId = {
+                exact: micDeviceId
+            };
         }
         callback(track);
     });
