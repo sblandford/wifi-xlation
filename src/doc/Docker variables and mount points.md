@@ -112,6 +112,8 @@ The file that specifies the languages and passwords. It is highly recommended to
 
 If a channel is going to be used for music or if the echo cancellation and noise reduction is not required, then preprend an asterisk to the language name, e.g. *Stage. This will modify the behaviour of the broadcast to switch off the echo cancellation and noise reduction.
 
+If sending external audio to an RTP port then the RTP Payload type must be 96 and the codec must be Opus. See the test-tones.sh script.
+
 #### The video channel
 
 It is possible to send a video channel to the translators so that they can see what is going on if they are not in the same room or operating remotely e.g via a VPN. There are three ways to specify the video channel.
@@ -126,7 +128,7 @@ The video channel is hidden from the channel lists since it is not intended for 
 
 ##### Video RTP the reserved language name, "Video Channel"
 
-The video is sent to the specified port using the codec specified in the Translator Password column. The video codec must be VP8 or VP9.
+The video is sent to the specified port using the codec specified in the Translator Password column. The RTP Payload type must be 98 and the video codec must be VP8 or VP9. See the test-tones.sh script.
 
 ```
 5016,Video channel,vp8

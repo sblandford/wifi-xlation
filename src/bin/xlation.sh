@@ -434,7 +434,7 @@ Video-$(( id + 1 )): {
     video = true
     videoport = $portv
     videocodec = \"$pin\"
-    $videomcast""videopt = 96" >> /etc/janus/janus.plugin.streaming.jcfg
+    $videomcast""videopt = 98" >> /etc/janus/janus.plugin.streaming.jcfg
         if [[ $porta ]]; then
             echo "    audio = true
     audioport = $porta
