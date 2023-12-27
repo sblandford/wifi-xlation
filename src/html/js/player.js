@@ -47,7 +47,9 @@ let gHasScrolledTimer = null;
 
 // Available debug outputs: "trace", "debug", "vdebug", "log", "warn", "error"
 // Modifiy in local storage to set desired debug level in browser
+// Also modify enableDebugPollStatus in local storage to enable or disable debugging of polling loop
 let gDebugLevels = ["warn", "error"];
+let gDebugBindStore = {};
 if (!localStorage.debugLevels) {
     localStorage.debugLevels = JSON.stringify(gDebugLevels);
 } else {
@@ -63,6 +65,9 @@ window.onload = function() {
     runWithSettings(function() {
         if (!localStorage.micDeviceId) {
             localStorage.micDeviceId = 'default';
+        }
+        if (!localStorage.enableDebugPollStatus) {
+            localStorage.enableDebugPollStatus = 'false';
         }
         janusInit();
         updateDisplay();
@@ -236,6 +241,26 @@ function janusInit() {
         },
         destroyed: function() {
             reloadOrJumpBack();
+        }
+    });
+}
+
+// Mute or unmute anything below a warning from Janus to prevent noise from polling
+// "trace", "debug", "vdebug", "log", "warn", "error"
+function janusLogMute(mute) {
+    // Poll status debugging is enabled
+    if (localStorage.enableDebugPollStatus.toLowerCase() === 'true') {
+        return;
+    }
+    // Disable or enable lower debug levels
+    gDebugLevels.forEach(function(level) {
+        if ((level !== 'error') && (level !== 'warn')) {
+            if (mute) {
+                gDebugBindStore[level] = Janus[level];
+                Janus[level] = Janus.noop;
+            } else {
+                Janus[level] = gDebugBindStore[level];
+            }
         }
     });
 }
@@ -595,6 +620,7 @@ function pollStatus() {
         const body = {
             "request": "list"
         };
+        janusLogMute(true);
         gStreamingHandle.send({
             "message": body,
             success: function(result) {
@@ -603,76 +629,83 @@ function pollStatus() {
                 } else {
                     const list = result.list;
                     Janus.debug("Got list of streams");
-                    gSendMixerHandle.send({
-                        "message": body,
-                        success: function(result) {
-                            let listTx = false;
-                            if (result === null || result === undefined) {
-                                alert("Got no response to our query for available TX rooms");
-                            } else {
-                                listTx = result.list;
-                                Janus.debug("Got list of rooms");
-                            }
-                            let newStatus = [];
-                            for (let i = 0; i < list.length; i++) {
-                                let mp = list[i],
-                                    validTx = false,
-                                    freeTx = true,
-                                    txParticipants = 0;
-                                if (listTx) {
-                                    for (let j = 0; j < listTx.length; j++) {
-                                        const mpTx = listTx[j];
-                                        if (mpTx.room == mp.id) {
-                                            Janus.debug("Got match");
-                                            validTx = true;
-                                            txParticipants = mpTx.num_participants;
-                                            freeTx = (txParticipants <= ((gSendIntention) ? 1 : 0));
-                                            break;
+                    if (gSendMixerHandle) {
+                        gSendMixerHandle.send({
+                            "message": body,
+                            success: function(result) {
+                                let listTx = false;
+                                if (result === null || result === undefined) {
+                                    alert("Got no response to our query for available TX rooms");
+                                } else {
+                                    listTx = result.list;
+                                    Janus.debug("Got list of rooms");
+                                }
+                                let newStatus = [];
+                                for (let i = 0; i < list.length; i++) {
+                                    let mp = list[i],
+                                        validTx = false,
+                                        freeTx = true,
+                                        txParticipants = 0;
+                                    if (listTx) {
+                                        for (let j = 0; j < listTx.length; j++) {
+                                            const mpTx = listTx[j];
+                                            if (mpTx.room == mp.id) {
+                                                Janus.debug("Got match");
+                                                validTx = true;
+                                                txParticipants = mpTx.num_participants;
+                                                freeTx = (txParticipants <= ((gSendIntention) ? 1 : 0));
+                                                break;
+                                            }
                                         }
                                     }
+                                    const audioStream = mp.media.find(({mid}) => mid === 'a');
+                                    const videoStream = mp.media.find(({mid}) => mid === 'v');
+                                    let audioObj = (typeof(audioStream) === 'object')
+                                    let videoObj = (typeof(videoStream) === 'object')
+                                    const audioAge = (audioStream ? audioStream.age_ms : 0);
+                                    const videoAge = (videoStream ? videoStream.age_ms : 0);
+                                    Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
+                                    const musicChannel = (mp.description.length > 1 && (mp.description.substring(0, 1) === "*"));
+                                    newStatus.push({
+                                        'name': ((musicChannel) ? (mp.description.substring(1, )) : mp.description),
+                                        'audioValid': (audioObj && mp.enabled && (audioAge < gMaxMediaAgeMs)),
+                                        'music': musicChannel,
+                                        'videoValid': (videoObj && mp.enabled && (videoAge < gMaxMediaAgeMs)),
+                                        'id': mp.id,
+                                        'validTx': validTx,
+                                        'freeTx': freeTx,
+                                        'participantsTx': txParticipants
+                                    });
                                 }
-                                const audioStream = mp.media.find(({mid}) => mid === 'a');
-                                const videoStream = mp.media.find(({mid}) => mid === 'v');
-                                let audioObj = (typeof(audioStream) === 'object')
-                                let videoObj = (typeof(videoStream) === 'object')
-                                const audioAge = (audioStream ? audioStream.age_ms : 0);
-                                const videoAge = (videoStream ? videoStream.age_ms : 0);
-                                Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
-                                const musicChannel = (mp.description.length > 1 && (mp.description.substring(0, 1) === "*"));
-                                newStatus.push({
-                                    'name': ((musicChannel) ? (mp.description.substring(1, )) : mp.description),
-                                    'audioValid': (audioObj && mp.enabled && (audioAge < gMaxMediaAgeMs)),
-                                    'music': musicChannel,
-                                    'videoValid': (videoObj && mp.enabled && (videoAge < gMaxMediaAgeMs)),
-                                    'id': mp.id,
-                                    'validTx': validTx,
-                                    'freeTx': freeTx,
-                                    'participantsTx': txParticipants
-                                });
-                            }
-                            // Sort array by channel ID
-                            newStatus.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
-                            // If any change then clone array
-                            if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
-                                gStatus = JSON.parse(JSON.stringify(newStatus));
-                                gStatusUpdate = true;
-                                if (gStatus.length > 0) {
-                                    initaliseLocalStorageIfRequired(gStatus[0].name);
+                                // Sort array by channel ID
+                                newStatus.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
+                                // If any change then clone array
+                                if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
+                                    gStatus = JSON.parse(JSON.stringify(newStatus));
+                                    gStatusUpdate = true;
+                                    if (gStatus.length > 0) {
+                                        initaliseLocalStorageIfRequired(gStatus[0].name);
+                                    }
+                                    updateDisplay();
                                 }
-                                updateDisplay();
+                                janusLogMute(false);
+                            },
+                            error: function(error) {
+                                Janus.error("Error polling server for TX streams... " + error);
+                                gErrorCount++;
+                                if (gErrorCount > gErrorMax) {
+                                    reloadOrJumpBack();
+                                }
+                                janusLogMute(false);
                             }
-                        },
-                        error: function(error) {
-                            Janus.error("Error polling server for TX streams... " + error);
-                            gErrorCount++;
-                            if (gErrorCount > gErrorMax) {
-                                reloadOrJumpBack();
-                            }
-                        }
-                    });
+                        });
+                    } else {
+                        Janus.log("Send mixer handle null at present time");
+                    }
                 }
             },
             error: function(error) {
+                janusLogMute(false);
                 Janus.error("Error polling server for RX streams... " + error);
                 gErrorCount++;
                 if (gErrorCount > gErrorMax) {
