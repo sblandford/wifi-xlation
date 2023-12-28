@@ -8,7 +8,7 @@ OUT_JSON_TMP="$OUT_JSON""_tmp"
 MAX_AUDIO_AGE_MS=2000
 
 get_ids () {
-    grep -P "id.*=\s*[0-9]+" "$CONF" | grep -Po "[0-9]+"
+    grep -P "\s?id\s+?=\s*[0-9]+" "$CONF" | grep -Po "[0-9]+"
 }
 
 get_secret () {
