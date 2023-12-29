@@ -67,14 +67,14 @@ for stream_id in $( get_ids ); do
     secret=$( get_secret $stream_id )
     info=$( get_info $session_id $handle_id $stream_id $secret )
     name=$( echo "$info" | grep -F '"description"' | grep -Po '(?<=")[^"]+(?=",\s*$)' )
-    age_ms=$( echo "$info" | grep -F '"age_ms"' | grep -Po '[0-9]+' | head -n 1 )
+    age_ms=$( echo "$info" | grep -F '"age_ms"' | grep -Po '[0-9]+' | tail -n 1 )
     active="false"
-    [[ $age_ms -lt $MAX_AUDIO_AGE_MS ]] && active="true"
+    [[ ${#age_ms} -gt 0 ]] && [[ $age_ms -lt $MAX_AUDIO_AGE_MS ]] && active="true"
     listeners=$( echo "$info" | grep -F '"viewers"' | grep -Po '[0-9]+' || echo "0" )
-    
+
     [[ $first_line ]] && echo ',' >> "$OUT_JSON_TMP"
     first_line=true
-    
+
     echo '  {' >> "$OUT_JSON_TMP"
     echo '    "id" : '$stream_id',' >> "$OUT_JSON_TMP"
     echo '    "name" : "'"$name"'",' >> "$OUT_JSON_TMP"
