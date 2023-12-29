@@ -70,7 +70,7 @@ for stream_id in $( get_ids ); do
     age_ms=$( echo "$info" | grep -F '"age_ms"' | grep -Po '[0-9]+' | head -n 1 )
     active="false"
     [[ $age_ms -lt $MAX_AUDIO_AGE_MS ]] && active="true"
-    listeners=$( echo "$info" | grep -F '"viewers"' | grep -Po '[0-9]+' )
+    listeners=$( echo "$info" | grep -F '"viewers"' | grep -Po '[0-9]+' || echo "0" )
     
     [[ $first_line ]] && echo ',' >> "$OUT_JSON_TMP"
     first_line=true
