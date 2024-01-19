@@ -803,7 +803,7 @@ function updateDisplay() {
         if (name == localStorage.channel) {
             const chNameId = document.getElementById('chName');
             const startStopButtonId = document.getElementById('startStopButton');
-            chNameId.innerHTML = name.replaceAll(" ", "<br />");
+            chNameId.innerHTML = name.replace(/[" "]/g, "<br />");
             classSet('chName', 'chNameDead', !status);
             if (gSettings.videoScreenKeeperRx) {
                 classSet('playVid', 'greyVid', !status);
@@ -824,7 +824,7 @@ function updateDisplay() {
             const startMuteButtonId = document.getElementById('startMuteButtonTx');
             const startMuteButtonTextEng = (gMuteIntention) ? "unmute" : ((gSendIntention) ? 'mute' : 'broadcast');
             const startMuteButtonText = LANG[gLang][startMuteButtonTextEng];
-            chNameId.innerHTML = name.replaceAll(" ", "<br />");
+            chNameId.innerHTML = name.replace(/[" "]/g, "<br />");
             classSet('chNameTx', 'chNameDead', !validTx);
             classSet('sendingVidOn', 'greyVid', !validTx);
             classSet('sendingVidMute', 'greyVid', !validTx);
