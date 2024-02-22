@@ -778,32 +778,42 @@ function updateDisplay() {
             validTx = gStatus[channel].validTx;
         }
 
-        if (status) {
-            listHtml += "<a href=\"#\"" +
-                " class=\"chNameNormal\"" +
-                " onclick=\"onclickChannel(" + channel + ");\"" +
-                " ontouchend=\"ontouchendChannel(" + channel + ");\"" +
-                ">" + name + "</a>\n";
-        } else {
-            if (!gSettings.hideOffAir) {
-                listHtml += "<a href=\"#\" class=\"disabled chNameNormal\">" + name + "</a>\n";
-            }
+        // If name contains re`<regex>` then the regex between the backticks is used
+        // to filter display by domain name for both receive and transmit
+        let showForDomain = true;
+        let dispName = name.replace(/re`[^`]+`/, "");
+        if (name !== dispName) {
+            let domainRegex = name.match(/re`[^`]+`/, "")[0].substring(3).slice(0,-1);
+            showForDomain = (window.location.hostname.match(new RegExp(domainRegex)) !== null);
         }
+        if (showForDomain) {
+            if (status) {
+                listHtml += "<a href=\"#\"" +
+                    " class=\"chNameNormal\"" +
+                    " onclick=\"onclickChannel(" + channel + ");\"" +
+                    " ontouchend=\"ontouchendChannel(" + channel + ");\"" +
+                    ">" + dispName + "</a>\n";
+            } else {
+                if (!gSettings.hideOffAir) {
+                    listHtml += "<a href=\"#\" class=\"disabled chNameNormal\">" + dispName + "</a>\n";
+                }
+            }
 
-        if (validTx) {
-            listHtmlTx += "<a href=\"#\"" +
-                " class=\"" + ((freeTx) ? "chNameNormal" : "chNameBusy") + "\"" +
-                " onclick=\"onclickChannelTx(" + channel + ");\"" +
-                " ontouchend=\"ontouchendChannelTx(" + channel + ");\"" +
-                ">" + name + "</a>\n";
-        } else {
-            listHtmlTx += "<a href=\"#\" class=\"disabled\">" + name + "</a>\n";
+            if (validTx) {
+                listHtmlTx += "<a href=\"#\"" +
+                    " class=\"" + ((freeTx) ? "chNameNormal" : "chNameBusy") + "\"" +
+                    " onclick=\"onclickChannelTx(" + channel + ");\"" +
+                    " ontouchend=\"ontouchendChannelTx(" + channel + ");\"" +
+                    ">" + dispName + "</a>\n";
+            } else {
+                listHtmlTx += "<a href=\"#\" class=\"disabled\">" + dispName + "</a>\n";
+            }
         }
 
         if (name == localStorage.channel) {
             const chNameId = document.getElementById('chName');
             const startStopButtonId = document.getElementById('startStopButton');
-            chNameId.innerHTML = name.replace(/[" "]/g, "<br />");
+            chNameId.innerHTML = dispName.replace(/[" "]/g, "<br />");
             classSet('chName', 'chNameDead', !status);
             if (gSettings.videoScreenKeeperRx) {
                 classSet('playVid', 'greyVid', !status);
@@ -824,7 +834,7 @@ function updateDisplay() {
             const startMuteButtonId = document.getElementById('startMuteButtonTx');
             const startMuteButtonTextEng = (gMuteIntention) ? "unmute" : ((gSendIntention) ? 'mute' : 'broadcast');
             const startMuteButtonText = LANG[gLang][startMuteButtonTextEng];
-            chNameId.innerHTML = name.replace(/[" "]/g, "<br />");
+            chNameId.innerHTML = dispName.replace(/[" "]/g, "<br />");
             classSet('chNameTx', 'chNameDead', !validTx);
             classSet('sendingVidOn', 'greyVid', !validTx);
             classSet('sendingVidMute', 'greyVid', !validTx);

@@ -112,6 +112,19 @@ The file that specifies the languages and passwords. It is highly recommended to
 
 If a channel is going to be used for music or if the echo cancellation and noise reduction is not required, then preprend an asterisk to the language name, e.g. *Stage. This will modify the behaviour of the broadcast to switch off the echo cancellation and noise reduction.
 
+A language channel can be shown or hidden according to a regular expression enclosed in the reserved pattern:
+```
+re`<regex>`
+```
+This is matched against the window.location.hostname of the client. This enables the same server instance to be used for multiple rooms. The channel is shown or hidden in both the receive and transmit lists.
+
+```
+5006,re`^auditorium.*`English,secret
+5008,re`^auditorium.*`Français,secret
+5010,re`^meetingroom1.*`English,secret
+5012,re`^meetingroom1.*`Français,secret
+```
+
 If sending external audio to an RTP port then the RTP Payload type must be 96 and the codec must be Opus. See the test-tones.sh script.
 
 #### The video channel
