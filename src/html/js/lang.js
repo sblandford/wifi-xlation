@@ -138,6 +138,20 @@ const LANG = {
         "show": "Показывать",
         "set password": "Установка пароля",
         "unauthorised": "Неавторизованный"
+    },
+    "it" : {
+        "select" : "Seleziona",
+        "channel": "Canale",
+        "start" : "Avvia",
+        "broadcast": "Trasmetti",
+        "stop" : "Ferma",
+        "mute": "Disattiva audio",
+        "unmute": "Attiva audio",
+        "ok": "Ok",
+        "cancel": "Annulla",
+        "show": "Mostra",
+        "set password": "Imposta password",
+        "unauthorised": "Non autorizzato"
     }
 }
 
