@@ -55,6 +55,41 @@ Either the --host option or the --rtpforward option must be used with xlationctl
 
 The SSL certificates can be supplied from files in a mounted directory or from an AWS S3 path. I have had some success using the [certbot-lambda](https://github.com/sblandford/certbot-lambda) project to keep a current LetsEncrypt certificate on S3. This link is to an updated version that supports Python 3.12.
 
+Once the certbot-lambda application is configured and storing the certificates in S3, the bucket location needs to be opened for the wifi-xlation docker to pull from. An IAM policy for this would like something like this. This policy would be attached to the user that is set to pull the certificates.
+```
+{
+ "Version":"2012-10-17",
+ "Statement": [
+   {
+     "Sid": "AllowStatement1",
+     "Action": ["s3:ListAllMyBuckets", "s3:GetBucketLocation"],
+     "Effect": "Allow",
+     "Resource": ["arn:aws:s3:::*"]
+   },
+  {
+     "Sid": "AllowStatement2A",
+     "Action": ["s3:ListBucket"],
+     "Effect": "Allow",
+     "Resource": ["arn:aws:s3:::<YOUR BUCKET NAME>"],
+     "Condition":{"StringEquals":{"s3:prefix":["","certs_"]}}
+    },
+  {
+     "Sid": "AllowStatement3",
+     "Action": ["s3:ListBucket"],
+     "Effect": "Allow",
+     "Resource": ["arn:aws:s3:::<YOUR BUCKET NAME>"],
+     "Condition":{"StringLike":{"s3:prefix":["certs_/*"]}}
+    },    
+   {
+     "Sid": "AllowStatement4A",
+     "Effect": "Allow",
+     "Action": ["s3:GetObject"],
+     "Resource": ["arn:aws:s3:::<YOUR BUCKET NAME>/certs_/*"]
+   }
+ ]
+}
+```
+
 # Janus/Docker issues
 
 To best results either run this docker with network=host or using macvlan. This useful video explains the issues : [Alessandro Amirante - Janus &Docker: friends or foe?](https://youtu.be/mrV2BQ95UFY)
