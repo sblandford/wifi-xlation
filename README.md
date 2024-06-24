@@ -53,7 +53,7 @@ Either the --host option or the --rtpforward option must be used with xlationctl
 
 # SSL
 
-The SSL certificates can be supplied from files in a mounted directory or from an AWS S3 path. I have had some success using the [certbot-lambda](https://github.com/kingsoftgames/certbot-lambda) project to keep a current LetsEncrypt certificate on S3.
+The SSL certificates can be supplied from files in a mounted directory or from an AWS S3 path. I have had some success using the [certbot-lambda](https://github.com/sblandford/certbot-lambda) project to keep a current LetsEncrypt certificate on S3. This link is to an updated version that supports Python 3.12.
 
 # Janus/Docker issues
 
