@@ -46,12 +46,12 @@
                                 </td></tr>
                                 <tr class="rx"><td class="rx">
                                     <div class="rx videoView">
-                                        <video class="rxVid hideItem" autoplay controls id="videoStream">
+                                        <video class="rxVid hideItem" autoplay playsinline id="videoStream">
                                         </video>
                                     </div>                    
                                     <div class="rx lampStopped" id="vidDiv">
                                         <!-- Video can be used to keep the display on. Unfortunately some phones stop playing audio consistently when the screen is off -->
-                                        <video class="greyVid" loop  disableRemotePlayback playsinline id="playVid">
+                                        <video class="greyVid" autoplay muted loop disableRemotePlayback playsinline webkit-playsinline id="playVid">
                                             <source src="media/green.m4v" type="video/mp4">
                                         </video>
                                     </div>
@@ -96,12 +96,12 @@
                                 <tr class="tx"><td class="tx">
                                     <div id="vidTxDiv">
                                         <div class="tx lampStopped" id="vidOnTx">
-                                            <video class="greyVid" loop  disableRemotePlayback playsinline id="sendingVidOn">
+                                            <video class="greyVid" autoplay muted loop disableRemotePlayback playsinline webkit-playsinline id="sendingVidOn">
                                                 <source src="media/on-air.m4v" type="video/mp4">
                                             </video>
                                         </div>
                                         <div class="tx lampStopped" id="vidMuteTx">
-                                            <video class="greyVid" loop  disableRemotePlayback playsinline id="sendingVidMute">
+                                            <video class="greyVid" autoplay muted loop disableRemotePlayback playsinline webkit-playsinline id="sendingVidMute">
                                                 <source src="media/muted.m4v" type="video/mp4">
                                             </video>
                                         </div>
@@ -164,11 +164,11 @@
             Unauthorised
         </div>
         <div id="stream">
-            <audio id="videoStreamAudio" autoplay playsinline/>
-            <audio id="audioStream" autoplay playsinline/>
-            <audio id="audioRoom" autoplay playsinline/>
-            <audio id="silence" src="media/silence.mp3" loop playsinline/>
-            <audio id="silenceTx" src="media/silence.mp3" loop playsinline/>
+            <audio id="videoStreamAudio" autoplay playsinline webkit-playsinline></audio>
+            <audio id="audioStream" autoplay playsinline webkit-playsinline></audio>
+            <audio id="audioRoom" autoplay playsinline webkit-playsinline></audio>
+            <audio id="silence" src="media/silence.mp3" loop playsinline webkit-playsinline></audio>
+            <audio id="silenceTx" src="media/silence.mp3" loop playsinline webkit-playsinline></audio>
         </div>      
     </div>
 </body>

@@ -43,6 +43,10 @@ let gRemoteRoomStream = null;
 let gErrorCount = 0;
 let gUserHasScrolled = false;
 let gHasScrolledTimer = null;
+let gWakeLock = null;
+let gAudioContext = null;
+let gOscillator = null;
+let gGainNode = null;
 
 
 // Available debug outputs: "trace", "debug", "vdebug", "log", "warn", "error"
@@ -83,6 +87,9 @@ window.onload = function() {
             }
         }, false);
         orientation();
+
+        // Handle page visibility changes to maintain audio playback
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         // Play silence on a loop when playing WebRTC audio to keep phone
         // alive when screen goes off.
@@ -130,6 +137,109 @@ function scrollInputMaskTimer() {
         gUserHasScrolled = false;
         gHasScrolledTimer = null;
     }, gMenuScrollTimoutMs);
+}
+
+// Request Wake Lock to prevent screen from sleeping
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator && !gWakeLock) {
+            gWakeLock = await navigator.wakeLock.request('screen');
+            Janus.log('Wake Lock activated');
+            gWakeLock.addEventListener('release', () => {
+                Janus.log('Wake Lock released');
+                gWakeLock = null;
+            });
+        }
+    } catch (err) {
+        Janus.warn('Wake Lock request failed:', err);
+    }
+}
+
+// Release Wake Lock
+function releaseWakeLock() {
+    if (gWakeLock) {
+        gWakeLock.release();
+        gWakeLock = null;
+    }
+}
+
+// Create silent Web Audio API oscillator to keep audio context alive
+function createSilentOscillator() {
+    try {
+        if (!gAudioContext) {
+            gAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+            gOscillator = gAudioContext.createOscillator();
+            gGainNode = gAudioContext.createGain();
+            
+            gOscillator.connect(gGainNode);
+            gGainNode.connect(gAudioContext.destination);
+            
+            gGainNode.gain.value = 0.001; // Near-silent
+            gOscillator.frequency.value = 20; // Sub-audible frequency
+            gOscillator.start();
+            Janus.log('Silent oscillator started');
+        }
+    } catch (err) {
+        Janus.warn('Failed to create silent oscillator:', err);
+    }
+}
+
+// Stop silent oscillator
+function stopSilentOscillator() {
+    try {
+        if (gOscillator) {
+            gOscillator.stop();
+            gOscillator.disconnect();
+            gOscillator = null;
+        }
+        if (gGainNode) {
+            gGainNode.disconnect();
+            gGainNode = null;
+        }
+        if (gAudioContext) {
+            gAudioContext.close();
+            gAudioContext = null;
+        }
+        Janus.log('Silent oscillator stopped');
+    } catch (err) {
+        Janus.warn('Error stopping silent oscillator:', err);
+    }
+}
+
+// Handle visibility changes to maintain playback
+function handleVisibilityChange() {
+    if (!document.hidden) {
+        Janus.log('Page became visible');
+        // Re-request wake lock when page becomes visible
+        if (gPlaying || gSending) {
+            requestWakeLock();
+        }
+        // Resume audio playback if needed
+        if (gPlaying) {
+            const audioStream = document.getElementById('audioStream');
+            if (audioStream && audioStream.paused) {
+                audioStream.play().catch(err => {
+                    Janus.warn('Failed to resume audio:', err);
+                });
+            }
+            const silentPlayer = document.getElementById('silence');
+            if (silentPlayer && silentPlayer.paused) {
+                silentPlayer.play().catch(err => {
+                    Janus.warn('Failed to resume silent player:', err);
+                });
+            }
+        }
+        if (gSending) {
+            const silentPlayerTx = document.getElementById('silenceTx');
+            if (silentPlayerTx && silentPlayerTx.paused) {
+                silentPlayerTx.play().catch(err => {
+                    Janus.warn('Failed to resume silent player TX:', err);
+                });
+            }
+        }
+    } else {
+        Janus.log('Page became hidden');
+    }
 }
 
 function jumpBack() {
@@ -1037,6 +1147,9 @@ function startPlay() {
         if (silentPlayer && silentPlayer.paused) {
             silentPlayer.play();
         }
+        // Activate wake lock and silent oscillator
+        requestWakeLock();
+        createSilentOscillator();
         gPlaying = true;
         updateDisplay();
     }
@@ -1053,6 +1166,9 @@ function startSend() {
         if (silentPlayer && silentPlayer.paused) {
             silentPlayer.play();
         }
+        // Activate wake lock and silent oscillator
+        requestWakeLock();
+        createSilentOscillator();
         gSending = true;
         updateDisplay();
     }
@@ -1093,6 +1209,11 @@ function stopPlay() {
     if (silentPlayer && !silentPlayer.paused) {
         silentPlayer.pause();
     }
+    // Release wake lock and stop oscillator if nothing else is playing
+    if (!gSending) {
+        releaseWakeLock();
+        stopSilentOscillator();
+    }
     updateDisplay();
 }
 
@@ -1123,6 +1244,11 @@ function stopSend() {
         if (silentPlayer && !silentPlayer.paused) {
             silentPlayer.pause();
         }
+    }
+    // Release wake lock and stop oscillator if nothing else is playing
+    if (!gPlaying) {
+        releaseWakeLock();
+        stopSilentOscillator();
     }
     updateDisplay();
 }
