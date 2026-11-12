@@ -1,4 +1,4 @@
-FROM ubuntu:noble
+FROM ubuntu:26.04
 
 ENV DOMAIN=xlation.example.com
 ENV QR_CODE_URL=
@@ -8,6 +8,7 @@ ENV SSL_KEY=
 ENV AWS_ACCESS_KEY_ID=
 ENV AWS_SECRET_ACCESS_KEY=
 ENV AWS_DEFAULT_REGION=
+ENV S3_ENDPOINT=
 ENV ADMIN_PASSWORD=xlationoverlord
 ENV HTTP_STATIC_PORT=80
 ENV HTTPS_STATIC_PORT=443
@@ -25,17 +26,29 @@ ENV TIMOUT_URL=
 ENV MULTICAST_IP4=
 ENV HIDE_MIC=false
 ENV NAT_1_1_MAPPING=
+ENV WS_PROXY=true
+ENV JANUS_SESSION_TIMEOUT=90
+ENV JANUS_RECLAIM_TIMEOUT=60
+ENV DSCP=46
+ENV OPUS_EXPECTED_LOSS=15
+ENV AUDIOBRIDGE_PREBUFFER=4
+ENV JITTER_BUFFER_MS=0
+ENV TURN_URLS=
+ENV TURN_USER=
+ENV TURN_PASSWORD=
 
 RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
-RUN apt update -y && apt install -y \
+# --no-install-recommends keeps the image small. curl fetches certificates from S3
+# itself (AWS SigV4), so no separate S3 client is needed.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     janus \
     libjs-janus-gateway \
     nginx \
     curl \
+    ca-certificates \
     iproute2 \
     less \
     nano \
-    s3cmd \
     && rm -rf /var/lib/apt/lists/*
 COPY src/html/ /var/www/html/
 COPY src/conf/languages.conf /etc/languages.conf

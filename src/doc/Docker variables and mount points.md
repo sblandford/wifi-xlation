@@ -24,7 +24,13 @@ Access key used for fetching SSL_CHAIN and SSL_KEY from an s3:// bucket location
 Secret key used for fetching SSL_CHAIN and SSL_KEY from an s3:// bucket location
 
 ## AWS_DEFAULT_REGION
-Region in which S3 bucket is located
+Region in which S3 bucket is located. If not set, it is looked up from the bucket
+
+## AWS_SESSION_TOKEN
+Session token, only needed when using temporary AWS credentials
+
+## S3_ENDPOINT
+URL of an S3-compatible service (e.g. `https://minio.example.com:9000`) to fetch SSL_CHAIN and SSL_KEY from instead of AWS. Leave blank for AWS
 
 ## ADMIN_PASSWORD
 #### Default: xlationoverlord
@@ -68,7 +74,11 @@ Open connections limit in libmicrohttpd used by janus.transport.http
 
 ## WEBSOCKETS
 #### Default: false
-Use Websockets instead of REST API to contact Janus
+Expose Janus WebSockets directly on its own ports (8188 for ws, 8989 for wss). Usually not needed, since WS_PROXY provides WebSockets on the normal web port
+
+## WS_PROXY
+#### Default: true
+Provide Janus WebSockets through Nginx at /janus-ws on the same port as the web page. Clients use this first and fall back to the REST API (long-polling) if it fails. WebSockets give lower signalling latency and notice a dropped connection immediately. Set to false to use only the REST API, as in older versions
 
 ## VIDEO_SCREEN_KEEPER_RX
 #### Default: false
@@ -94,6 +104,44 @@ Hide any RX channels that are not currently active instead of showing them greye
 
 ## NAT_1_1_MAPPING
 If set, the nat_1_1_mapping is set to the given IP address and keep_private_host is set to "false". This is useful for EC2 instances that are configured with a 1:1 NAT, in which case, set this variable to the public IP address
+
+# Connection reliability and latency
+
+## JANUS_SESSION_TIMEOUT
+#### Default: 90
+Seconds without any request before Janus drops a client session. Long enough for a phone to roam between access points, or wake up, and carry on with the same session
+
+## JANUS_RECLAIM_TIMEOUT
+#### Default: 60
+Seconds Janus keeps a session after its WebSocket connection drops, so that the client can reconnect and reclaim it without starting again
+
+## DSCP
+#### Default: 46
+DSCP value marked on all media packets sent by Janus. 46 (Expedited Forwarding) puts the audio in the voice queue (WMM AC_VO) on most WiFi access points, which reduces delay and dropouts on a busy network. Set to 0 to disable marking
+
+## OPUS_EXPECTED_LOSS
+#### Default: 15
+Expected packet loss percentage (0-20) given to the Opus encoder for the translation rooms. Higher values add more in-band forward error correction (FEC), letting listeners rebuild lost packets at a small cost in audio quality. Applies to the audio forwarded to listeners
+
+## AUDIOBRIDGE_PREBUFFER
+#### Default: 4
+Packets (20ms each) buffered from each translator before mixing. Lower values reduce latency; raise it (Janus default is 6) if translators on poor WiFi sound choppy
+
+## JITTER_BUFFER_MS
+#### Default: 0
+If greater than 0, asks listeners' browsers to keep at least this many milliseconds of audio in their jitter buffer. This adds latency but can smooth out the bursty delivery common on busy WiFi. 0 leaves it to the browser. Supported by Chrome-based browsers
+
+## TURN_URLS
+Comma separated list of TURN server URLs given to clients, e.g. `turn:turn.example.com:3478?transport=udp,turns:turn.example.com:443?transport=tcp`. A TURN server lets phones that have roamed onto mobile data, or are on restrictive networks, still reach Janus. TURN over TLS on port 443 gets through most firewalls. Janus must also be reachable from the TURN server, e.g. via NAT_1_1_MAPPING
+
+## TURN_USER
+Username for the TURN server
+
+## TURN_PASSWORD
+Password for the TURN server. Note that this is visible to anyone who can load the web page, so use a TURN account dedicated to this service
+
+# Caching
+Nginx tells browsers to check for a newer copy of the web application on every load (`Cache-Control: no-cache`), which costs only a quick "not modified" reply when nothing has changed. The settings file is never cached. This means devices pick up a new version as soon as the server is updated.
 
 # Useful mount points
 ## /etc/languages.conf

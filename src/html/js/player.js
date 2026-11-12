@@ -5,13 +5,39 @@ const gOpaqueIdSend = "audiobridge-" + Janus.randomString(12);
 const gMaxMediaAgeMs = 2000;
 const gLang = (LANG.hasOwnProperty(gBrowserLang)) ? gBrowserLang : 'en';
 const gLangTx = gLang;
-const gErrorMax = 3;
 const gMenuScrollTimoutMs = 150;
 const gStatusPollTime = 5000;
 const gDimVolume = 0.05;
 
+// Connection recovery tuning
+// Consecutive failed status polls before the signalling session is treated as lost
+const gErrorMax = 3;
+// A status poll with no answer after this long counts as failed
+const gStatusPollTimeoutMs = 8000;
+// Janus answers HTTP long-polls within 30s, so anything much longer is a dead connection
+const gLongPollTimeoutMs = 40000;
+// ICE "disconnected" often recovers by itself, so wait this long before acting
+const gIceDisconnectGraceMs = 2000;
+// How often to check that media packets are still arriving
+const gWatchdogIntervalMs = 1000;
+// No packets for this long while the source is live means the media path is stalled
+const gMediaStallMs = 6000;
+// Minimum time between recovery attempts on the same media path
+const gRecoveryMinIntervalMs = 4000;
+// A media path counts as healthy again after flowing for this long
+const gHealthyResetMs = 10000;
+// Backoff between attempts to create a new signalling session
+const gSessionRetryMinMs = 1000;
+const gSessionRetryMaxMs = 8000;
+// Keep trying to reclaim an unreachable session for this long (server keeps it for JANUS_RECLAIM_TIMEOUT)
+const gReclaimWindowMs = 30000;
+// After this long without a session, reload or jump to the holding page
+const gGiveUpAfterMs = 60000;
+// Resume state saved across a reload is ignored after this long
+const gResumeMaxAgeMs = 10 * 60 * 1000;
+const gResumeKey = 'xlationResume';
+
 let gSettings = {};
-let gServer = "janus";
 
 let gStatus = [];
 let gMicList = [];
@@ -26,12 +52,17 @@ let gVidPlaying = false;
 let gSending = false;
 let gPasswordsTx = {};
 
-let gJanusReceive = null;
-let gJanusVideoReceive = null;
-let gJanusSend = null;
+// One Janus session carries all plugin handles
+let gJanus = null;
+let gSessionGen = 0;
+let gSessionReady = false;
+let gSessionRecovery = null;
 let gStreamingHandle = null;
 let gVideoStreamingHandle = null;
 let gSendMixerHandle = null;
+let gAttachSeq = {rx: 0, video: 0, tx: 0};
+let gRxWatchId = null;
+let gVideoWatchId = null;
 let gMyId = null;
 let gStereo = false;
 let gWebrtcUp = false;
@@ -41,6 +72,12 @@ let gRemoteVidStream = null;
 let gRemoteVidAudioStream = null;
 let gRemoteRoomStream = null;
 let gErrorCount = 0;
+let gPollSeq = 0;
+let gPollInFlightSince = 0;
+let gLogMuted = false;
+let gMedia = {rx: newMediaState(), video: newMediaState(), tx: newMediaState()};
+let gNetworkType = (navigator.connection) ? navigator.connection.type : undefined;
+let gResumePending = null;
 let gUserHasScrolled = false;
 let gHasScrolledTimer = null;
 let gWakeLock = null;
@@ -73,10 +110,11 @@ window.onload = function() {
         if (!localStorage.enableDebugPollStatus) {
             localStorage.enableDebugPollStatus = 'false';
         }
+        loadResumeState();
         janusInit();
         updateDisplay();
-        pollStatus();
         setInterval(timedPollStatus, gStatusPollTime);
+        setInterval(mediaWatchdog, gWatchdogIntervalMs);
         // Listen for resize changes
         window.addEventListener("resize", function() {
             // Get screen size (inner/outerWidth, inner/outerHeight)
@@ -90,6 +128,26 @@ window.onload = function() {
 
         // Handle page visibility changes to maintain audio playback
         document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Roaming between access points, or between WiFi and mobile data
+        window.addEventListener('online', function() {
+            networkChanged('browser is online');
+        });
+        window.addEventListener('offline', function() {
+            Janus.warn("Browser reports it is offline");
+            updateConnIndicator();
+        });
+        if (navigator.connection && navigator.connection.addEventListener) {
+            navigator.connection.addEventListener('change', function() {
+                // Only the network type is a reliable sign of a real change.
+                // Bandwidth estimates also fire this event, constantly.
+                const type = navigator.connection.type;
+                if (type !== gNetworkType) {
+                    gNetworkType = type;
+                    networkChanged('network type now ' + type);
+                }
+            });
+        }
 
         // Play silence on a loop when playing WebRTC audio to keep phone
         // alive when screen goes off.
@@ -170,10 +228,10 @@ function createSilentOscillator() {
             gAudioContext = new (window.AudioContext || window.webkitAudioContext)();
             gOscillator = gAudioContext.createOscillator();
             gGainNode = gAudioContext.createGain();
-            
+
             gOscillator.connect(gGainNode);
             gGainNode.connect(gAudioContext.destination);
-            
+
             gGainNode.gain.value = 0.001; // Near-silent
             gOscillator.frequency.value = 20; // Sub-audible frequency
             gOscillator.start();
@@ -237,21 +295,112 @@ function handleVisibilityChange() {
                 });
             }
         }
+        // The network may have changed while hidden, so check the connection now
+        // rather than waiting for the next poll
+        checkConnectionHealth('page became visible');
     } else {
         Janus.log('Page became hidden');
     }
 }
 
-function jumpBack() {
+// Remember what the user was doing so that it can be offered back after a reload
+function saveResumeState() {
+    if (gPlayIntention || gSendIntention) {
+        try {
+            sessionStorage.setItem(gResumeKey, JSON.stringify({
+                play: gPlayIntention,
+                send: gSendIntention,
+                mute: gMuteIntention,
+                time: Date.now()
+            }));
+        } catch (err) {
+            Janus.warn("Could not save resume state", err);
+        }
+    }
+}
+
+function loadResumeState() {
+    try {
+        const stored = sessionStorage.getItem(gResumeKey);
+        sessionStorage.removeItem(gResumeKey);
+        if (stored) {
+            const state = JSON.parse(stored);
+            if (state && (Date.now() - state.time < gResumeMaxAgeMs) && (state.play || state.send)) {
+                gResumePending = state;
+            }
+        }
+    } catch (err) {
+        Janus.warn("Could not load resume state", err);
+    }
+}
+
+// Browsers will not start audio after a reload without a user gesture,
+// so offer a single tap to pick up where the user left off
+function offerResume() {
+    if (!gResumePending || document.getElementById('resumeBox')) {
+        return;
+    }
+    const resume = gResumePending;
+    const playOk = resume.play && channelLive(localStorage.channel);
+    const sendOk = resume.send && !gHideMic && channelTxValid(localStorage.channelTx);
+    if (!playOk && !sendOk) {
+        return;
+    }
+    gResumePending = null;
+    const box = document.createElement('div');
+    box.id = 'resumeBox';
+    box.className = 'resumeBox';
+    const button = document.createElement('button');
+    button.className = 'resumeBtn';
+    button.innerText = langText(gLang, sendOk ? 'tap to resume broadcast' : 'tap to resume');
+    box.appendChild(button);
+    box.addEventListener('click', function(event) {
+        event.stopPropagation();
+        box.remove();
+        if (playOk && !gPlayIntention) {
+            clickPlayerEnact();
+        }
+        if (sendOk && !gSendIntention) {
+            gMuteIntention = !!resume.mute;
+            clickSenderStartMuteEnact();
+        }
+    });
+    document.body.appendChild(box);
+}
+
+function langText(lang, key) {
+    if (LANG[lang] && LANG[lang][key]) {
+        return LANG[lang][key];
+    }
+    return LANG.en[key] || key;
+}
+
+function jumpBack(onStay) {
     if (gSettings.timeoutUrl !== false) {
-        window.location.href = gSettings.timeoutUrl;
+        // Only leave if the holding page can be reached, otherwise the user
+        // is left on a browser error page that will never recover
+        fetch(gSettings.timeoutUrl, {
+            mode: "no-cors",
+            cache: "no-store"
+        }).then(function() {
+            window.location.href = gSettings.timeoutUrl;
+        }).catch(function() {
+            Janus.warn("Holding page not reachable, staying put");
+            if (onStay) {
+                onStay();
+            }
+        });
+    } else if (onStay) {
+        onStay();
     } else {
         window.location.reload();
     }
 }
 
-// If we have lost the server then jump to holding page if it is set
-function reloadOrJumpBack() {
+// If we have lost the server then reload, or jump to holding page if it is set.
+// onStay is called if neither is possible, e.g. no network at all.
+function reloadOrJumpBack(onStay) {
+    saveResumeState();
     fetch("index.html", {
         cache: "no-store"
     }).then(function(response) {
@@ -261,10 +410,10 @@ function reloadOrJumpBack() {
             // Reload page if it exists
             window.location.reload();
         } else {
-            jumpBack();
+            jumpBack(onStay);
         }
     }).catch(function(err) {
-        jumpBack();
+        jumpBack(onStay);
     });
 }
 
@@ -324,7 +473,27 @@ function updateLiveMic() {
     });
 }
 
+// Stand-in for the audiobridge handle when the translator panel is hidden
+// or while the real handle is being (re)attached
+function fakeSendMixerHandle() {
+    return {
+        fake: true,
+        send: function(params) {
+            if (params && typeof params.success === 'function') {
+                params.success({
+                    "list": []
+                });
+            }
+        }
+    };
+}
+
+function isRealHandle(handle) {
+    return !!(handle && !handle.fake && typeof handle.getId === 'function');
+}
+
 function janusInit() {
+    gSendMixerHandle = fakeSendMixerHandle();
     Janus.init({
         debug: gDebugLevels,
         callback: function() {
@@ -332,25 +501,575 @@ function janusInit() {
                 Janus.error("No WebRTC support");
                 return;
             }
-            // Generate fake empty response
-            gSendMixerHandle = {
-                "send": function(fakeParams) {
-                    fakeParams.success({
-                        "list": []
-                    });
-                }
-            };
-            if (!gHideMic) {
-                sendInit();
-                videoReceiveInit();
-            }
-            receiveInit();
+            janusConnect();
+        }
+    });
+}
+
+// Signalling servers in order of preference. janus.js uses the first one that works.
+function janusServers() {
+    let servers = [];
+    if (gSettings.wsProxy) {
+        // WebSockets proxied by the web server on the same host and port as the page
+        const url = new URL(gSettings.wsProxyPath || "janus-ws", window.location.href);
+        url.protocol = (window.location.protocol === "https:") ? "wss:" : "ws:";
+        servers.push(url.href);
+    }
+    switch (gSettings.ws) {
+        case 'ws':
+            servers.push("ws://" + window.location.hostname + ":8188");
+            break;
+        case 'wss':
+            servers.push("wss://" + window.location.hostname + ":8989");
+            break;
+    }
+    // REST API long-polling as the last resort
+    servers.push("janus");
+    return servers;
+}
+
+function janusConnect() {
+    const gen = ++gSessionGen;
+    gSessionReady = false;
+    resetHandles();
+    gJanus = new Janus({
+        server: janusServers(),
+        iceServers: gSettings.iceServers,
+        longPollTimeout: gLongPollTimeoutMs,
+        success: function() {
+            if (gen !== gSessionGen) return;
+            Janus.log("Janus session created");
+            attachHandles(gen);
         },
         error: function(error) {
-            Janus.error(error);
+            if (gen !== gSessionGen) return;
+            Janus.error("Janus session error:", error);
+            sessionLost("session error: " + error);
         },
         destroyed: function() {
-            reloadOrJumpBack();
+            if (gen !== gSessionGen) return;
+            Janus.warn("Janus session destroyed");
+            sessionLost("session destroyed");
+        }
+    });
+}
+
+function resetHandles() {
+    gStreamingHandle = null;
+    gVideoStreamingHandle = null;
+    gSendMixerHandle = fakeSendMixerHandle();
+    gWebrtcUp = false;
+    for (let path in gAttachSeq) {
+        gAttachSeq[path]++;
+    }
+}
+
+function attachHandles(gen) {
+    let pending = (gHideMic) ? 1 : 3;
+    const attached = function() {
+        pending--;
+        if (pending === 0 && gen === gSessionGen) {
+            gSessionReady = true;
+            sessionRecovered();
+            pollStatus();
+            restoreMedia();
+        }
+    };
+    attachStreaming('rx', gen, attached);
+    if (!gHideMic) {
+        attachStreaming('video', gen, attached);
+        attachAudiobridge(gen, attached);
+    }
+}
+
+// After a new session, put back whatever the user had running
+function restoreMedia() {
+    for (let path in gMedia) {
+        resetMediaState(path);
+    }
+    if (gPlaying) {
+        loadAudio();
+    }
+    if (gSending) {
+        loadSendRoom();
+    }
+}
+
+// Something is badly wrong with the signalling session: reclaim it or replace it
+function sessionLost(reason) {
+    gSessionReady = false;
+    updateConnIndicator();
+    if (!gSessionRecovery) {
+        Janus.warn("Signalling session lost (" + reason + "), recovering");
+        gSessionRecovery = {
+            startMs: Date.now(),
+            delayMs: gSessionRetryMinMs,
+            timer: null,
+            next: null,
+            busy: false
+        };
+        updateConnIndicator();
+        attemptSessionRecovery();
+    } else if (!gSessionRecovery.timer && !gSessionRecovery.busy) {
+        // The attempt in progress has failed
+        scheduleNewSession();
+    }
+}
+
+function attemptSessionRecovery() {
+    const rec = gSessionRecovery;
+    const janus = gJanus;
+    const gen = gSessionGen;
+    // A session that janus.js has given up on can be reclaimed, keeping all handles,
+    // if the server has not timed it out yet
+    if (janus && janus.getSessionId() && !janus.isConnected()) {
+        Janus.log("Trying to reclaim Janus session " + janus.getSessionId());
+        rec.busy = true;
+        janus.reconnect({
+            success: function() {
+                rec.busy = false;
+                if (gen !== gSessionGen || gSessionRecovery !== rec) return;
+                Janus.log("Janus session reclaimed");
+                gSessionReady = true;
+                sessionRecovered();
+                pollStatus();
+                // The network has probably changed underneath the media, so refresh it
+                for (let path in gMedia) {
+                    if (mediaWanted(path)) {
+                        resetMediaState(path);
+                        recoverMedia(path, "session reclaimed");
+                    }
+                }
+            },
+            error: function(error) {
+                rec.busy = false;
+                if (gen !== gSessionGen || gSessionRecovery !== rec) return;
+                Janus.warn("Could not reclaim session: " + error);
+                // If the server could not be reached at all, the session is probably still
+                // there waiting for us, so keep trying to claim it for a while
+                const serverForgotUs = /no such session/i.test(String(error));
+                if (!serverForgotUs && (Date.now() - rec.startMs < gReclaimWindowMs)) {
+                    recoveryWait(rec, attemptSessionRecovery);
+                } else {
+                    scheduleNewSession();
+                }
+            }
+        });
+    } else {
+        scheduleNewSession();
+    }
+}
+
+// Run the next recovery step after the current backoff delay
+function recoveryWait(rec, next) {
+    Janus.log("Next connection attempt in " + rec.delayMs + "ms");
+    rec.next = next;
+    rec.timer = setTimeout(function() {
+        rec.timer = null;
+        if (gSessionRecovery !== rec) return;
+        next();
+    }, rec.delayMs);
+    rec.delayMs = Math.min(rec.delayMs * 2, gSessionRetryMaxMs);
+}
+
+function scheduleNewSession() {
+    const rec = gSessionRecovery;
+    if (!rec || rec.timer || rec.busy) {
+        return;
+    }
+    discardSession();
+    if (Date.now() - rec.startMs > gGiveUpAfterMs) {
+        giveUp();
+        return;
+    }
+    recoveryWait(rec, janusConnect);
+}
+
+// Skip the backoff, e.g. when the network has just come back
+function retrySessionNow() {
+    const rec = gSessionRecovery;
+    if (rec && rec.timer && rec.next) {
+        clearTimeout(rec.timer);
+        rec.timer = null;
+        rec.delayMs = gSessionRetryMinMs;
+        rec.next();
+    }
+}
+
+function giveUp() {
+    const rec = gSessionRecovery;
+    Janus.warn("Could not recover the connection, reloading");
+    rec.busy = true;
+    reloadOrJumpBack(function() {
+        // Nowhere to go, so carry on trying from here
+        rec.busy = false;
+        rec.startMs = Date.now();
+        scheduleNewSession();
+    });
+}
+
+// Drop the current session locally without waiting on a network that may be dead
+function discardSession() {
+    const janus = gJanus;
+    gSessionGen++;
+    gJanus = null;
+    gSessionReady = false;
+    gPollInFlightSince = 0;
+    janusLogMute(false);
+    clearRemoteMedia();
+    resetHandles();
+    if (janus) {
+        try {
+            janus.destroy({
+                unload: true,
+                notifyDestroyed: false,
+                cleanupHandles: true
+            });
+        } catch (err) {
+            Janus.warn("Error discarding old session", err);
+        }
+    }
+}
+
+function sessionRecovered() {
+    if (gSessionRecovery && gSessionRecovery.timer) {
+        clearTimeout(gSessionRecovery.timer);
+    }
+    gSessionRecovery = null;
+    gErrorCount = 0;
+    updateConnIndicator();
+}
+
+function clearRemoteMedia() {
+    gRemoteStream = null;
+    gRemoteVidStream = null;
+    gRemoteVidAudioStream = null;
+    gRemoteRoomStream = null;
+}
+
+function newMediaState() {
+    return {
+        iceTimer: null,
+        attempts: 0,
+        lastAttemptMs: 0,
+        lastPackets: -1,
+        lastPacketsChangeMs: 0,
+        healthySinceMs: 0
+    };
+}
+
+function resetMediaState(path) {
+    const m = gMedia[path];
+    if (m.iceTimer) {
+        clearTimeout(m.iceTimer);
+    }
+    gMedia[path] = newMediaState();
+    // Give a new connection time to get going before the watchdog judges it
+    gMedia[path].lastPacketsChangeMs = Date.now();
+}
+
+function mediaHandle(path) {
+    switch (path) {
+        case 'rx':
+            return gStreamingHandle;
+        case 'video':
+            return gVideoStreamingHandle;
+        default:
+            return gSendMixerHandle;
+    }
+}
+
+function mediaPc(path) {
+    const handle = mediaHandle(path);
+    return (isRealHandle(handle) && handle.webrtcStuff) ? handle.webrtcStuff.pc : null;
+}
+
+function mediaWanted(path) {
+    switch (path) {
+        case 'rx':
+            return gPlaying;
+        case 'video':
+            return gVidPlaying;
+        default:
+            return gSending;
+    }
+}
+
+function mediaSourceLive(path) {
+    if (path === 'rx') {
+        return channelLive(localStorage.channel);
+    }
+    const channel = channelNumberLookup('Video Channel');
+    return (channel >= 0) && !!gStatus[channel].videoValid;
+}
+
+function mediaRecovering(path) {
+    const m = gMedia[path];
+    return mediaWanted(path) && (m.attempts > 0) && !m.healthySinceMs;
+}
+
+function onIceState(path, state) {
+    Janus.log(path + " ICE state changed to " + state);
+    const m = gMedia[path];
+    if (m.iceTimer) {
+        clearTimeout(m.iceTimer);
+        m.iceTimer = null;
+    }
+    if (state === 'disconnected') {
+        m.iceTimer = setTimeout(function() {
+            m.iceTimer = null;
+            const pc = mediaPc(path);
+            if (pc && pc.iceConnectionState === 'disconnected') {
+                recoverMedia(path, "ICE disconnected");
+            }
+        }, gIceDisconnectGraceMs);
+    } else if (state === 'failed') {
+        recoverMedia(path, "ICE failed");
+    }
+    updateConnIndicator();
+}
+
+// Escalating recovery for one media path: ICE restart first, then a fresh
+// handle, then a fresh session
+function recoverMedia(path, reason) {
+    const m = gMedia[path];
+    if (!mediaWanted(path)) {
+        m.attempts = 0;
+        return;
+    }
+    if (!gSessionReady) {
+        // Session recovery puts the media back when it completes
+        return;
+    }
+    const now = Date.now();
+    if (now - m.lastAttemptMs < gRecoveryMinIntervalMs) {
+        return;
+    }
+    m.lastAttemptMs = now;
+    m.lastPacketsChangeMs = now;
+    m.healthySinceMs = 0;
+    m.attempts++;
+    Janus.warn("Recovering " + path + " media, attempt " + m.attempts + " (" + reason + ")");
+    if (m.attempts === 1) {
+        iceRestart(path);
+    } else if (m.attempts <= 3) {
+        reattachMedia(path);
+    } else {
+        m.attempts = 0;
+        sessionLost(path + " media could not be recovered");
+    }
+    updateConnIndicator();
+}
+
+function iceRestart(path) {
+    const pc = mediaPc(path);
+    if (!pc || pc.connectionState === 'closed') {
+        reattachMedia(path);
+        return;
+    }
+    const handle = mediaHandle(path);
+    if (path === 'tx') {
+        if (!gWebrtcUp) {
+            reattachMedia(path);
+            return;
+        }
+        handle.createOffer({
+            iceRestart: true,
+            customizeSdp: customizeStereoSdp,
+            success: function(jsep) {
+                handle.send({
+                    message: {
+                        request: "configure",
+                        muted: gMuteIntention
+                    },
+                    jsep: jsep
+                });
+            },
+            error: function(error) {
+                Janus.warn("ICE restart offer failed", error);
+                reattachMedia(path);
+            }
+        });
+    } else {
+        const id = (path === 'rx') ? gRxWatchId : gVideoWatchId;
+        if (id === null) {
+            reattachMedia(path);
+            return;
+        }
+        // The streaming plugin answers with a new offer flagged as an ICE restart
+        handle.send({
+            message: {
+                request: "watch",
+                id: id,
+                restart: true
+            },
+            error: function(error) {
+                Janus.warn("ICE restart request failed", error);
+                reattachMedia(path);
+            }
+        });
+    }
+}
+
+// Replace the plugin handle, which gives a clean PeerConnection on both sides
+function reattachMedia(path) {
+    if (!gJanus || !gSessionReady) {
+        return;
+    }
+    const gen = gSessionGen;
+    const old = mediaHandle(path);
+    Janus.log("Re-attaching " + path + " handle");
+    if (path === 'rx') {
+        gRemoteStream = null;
+        attachStreaming('rx', gen, function() {
+            if (gPlaying) {
+                loadAudio();
+            }
+        });
+    } else if (path === 'video') {
+        gRemoteVidStream = null;
+        gRemoteVidAudioStream = null;
+        attachStreaming('video', gen, function() {
+            if (gVidPlaying) {
+                loadVideo();
+            }
+        });
+    } else {
+        gWebrtcUp = false;
+        gRemoteRoomStream = null;
+        attachAudiobridge(gen, function() {
+            if (gSending) {
+                loadSendRoom();
+            }
+        });
+    }
+    if (isRealHandle(old)) {
+        old.detach({
+            error: function(error) {
+                Janus.warn("Error detaching old " + path + " handle", error);
+            }
+        });
+    }
+}
+
+// The browser saw the network change: check the session and refresh the media
+function networkChanged(reason) {
+    Janus.log("Network change: " + reason);
+    if (!gSessionReady) {
+        retrySessionNow();
+        return;
+    }
+    pollStatus();
+    for (let path in gMedia) {
+        if (mediaWanted(path)) {
+            // Start again from a cheap ICE restart
+            gMedia[path].attempts = 0;
+            gMedia[path].lastAttemptMs = 0;
+            recoverMedia(path, reason);
+        }
+    }
+}
+
+function checkConnectionHealth(reason) {
+    if (!gSessionReady) {
+        retrySessionNow();
+        return;
+    }
+    pollStatus();
+    for (let path in gMedia) {
+        const pc = mediaPc(path);
+        if (mediaWanted(path) && pc &&
+            (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected')) {
+            recoverMedia(path, reason + ", ICE " + pc.iceConnectionState);
+        }
+    }
+}
+
+// Notice media that has stopped flowing even though nothing has reported an error
+function mediaWatchdog() {
+    ['rx', 'video'].forEach(function(path) {
+        const m = gMedia[path];
+        const pc = mediaPc(path);
+        if (!gSessionReady || !mediaWanted(path) || !pc) {
+            m.lastPackets = -1;
+            return;
+        }
+        pc.getStats().then(function(stats) {
+            let packets = 0;
+            stats.forEach(function(report) {
+                if (report.type === 'inbound-rtp') {
+                    packets += report.packetsReceived || 0;
+                }
+            });
+            const now = Date.now();
+            if (packets !== m.lastPackets) {
+                m.lastPackets = packets;
+                m.lastPacketsChangeMs = now;
+                noteHealthy(path, now);
+            } else if ((now - m.lastPacketsChangeMs > gMediaStallMs) && mediaSourceLive(path)) {
+                recoverMedia(path, "no media for " + Math.round((now - m.lastPacketsChangeMs) / 1000) + "s");
+            }
+        }).catch(function(err) {
+            Janus.debug("getStats failed", err);
+        });
+    });
+    // The translator's own packet counters keep rising even into a dead network,
+    // so judge the uplink by its ICE state
+    const pcTx = mediaPc('tx');
+    if (gSending && gWebrtcUp && pcTx &&
+        (pcTx.iceConnectionState === 'connected' || pcTx.iceConnectionState === 'completed')) {
+        noteHealthy('tx', Date.now());
+    }
+}
+
+function noteHealthy(path, now) {
+    const m = gMedia[path];
+    if (!m.healthySinceMs) {
+        m.healthySinceMs = now;
+        updateConnIndicator();
+    } else if (m.attempts && (now - m.healthySinceMs > gHealthyResetMs)) {
+        m.attempts = 0;
+    }
+}
+
+function updateConnIndicator() {
+    const stat = document.getElementById('stat');
+    if (!stat) {
+        return;
+    }
+    let text = "";
+    if (gPlaying || gSending) {
+        if (!navigator.onLine) {
+            text = langText(gLang, 'offline');
+        } else if (gSessionRecovery || mediaRecovering('rx') || mediaRecovering('video') || mediaRecovering('tx')) {
+            text = langText(gLang, 'reconnecting');
+        }
+    }
+    stat.innerText = text;
+}
+
+function customizeStereoSdp(jsep) {
+    if (gStereo && jsep.sdp.indexOf("stereo=1") == -1) {
+        // Make sure that our offer contains stereo too
+        jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
+    }
+}
+
+// Optionally hold more audio in the browser's jitter buffer to ride out bursty WiFi
+function applyJitterBufferTarget(handle) {
+    const ms = parseInt(gSettings.jitterBufferMs);
+    if (!ms || !handle || !handle.webrtcStuff || !handle.webrtcStuff.pc) {
+        return;
+    }
+    handle.webrtcStuff.pc.getReceivers().forEach(function(receiver) {
+        try {
+            if ('jitterBufferTarget' in receiver) {
+                receiver.jitterBufferTarget = ms;
+            } else if ('playoutDelayHint' in receiver) {
+                receiver.playoutDelayHint = ms / 1000;
+            }
+        } catch (err) {
+            Janus.warn("Could not set jitter buffer target", err);
         }
     });
 }
@@ -362,6 +1081,11 @@ function janusLogMute(mute) {
     if (localStorage.enableDebugPollStatus.toLowerCase() === 'true') {
         return;
     }
+    // Muting twice would save the no-op functions and lose the real ones
+    if (mute === gLogMuted) {
+        return;
+    }
+    gLogMuted = mute;
     // Disable or enable lower debug levels
     gDebugLevels.forEach(function(level) {
         if ((level !== 'error') && (level !== 'warn')) {
@@ -375,337 +1099,350 @@ function janusLogMute(mute) {
     });
 }
 
-function sendInit() {
-    if (gJanusSend) {
-        return;
-    }
-    gJanusSend = new Janus({
-        server: gServer,
-        iceServers: gSettings.iceServers,
-        success: function() {
-            gJanusSend.attach({
-                // Audiobridge is used for the translator to uplink the audio.
-                // If another translator appears then they will hear each other.
-                // This is useful for handing over from one translator to another without breaking the transmission
-                plugin: "janus.plugin.audiobridge",
-                gOpaqueId: gOpaqueIdSend,
-                success: function(pluginHandle) {
-                    gSendMixerHandle = pluginHandle;
-                    Janus.log("Plugin attached! (" + gSendMixerHandle.getPlugin() + ", id=" + gSendMixerHandle.getId() + ")");
-                },
-                error: function(error) {
-                    Janus.error("Error attaching plugin... " + error);
-                },
-                consentDialog: function(on) {
-                    Janus.debug("Consent dialog should be " + (on ? "on" : "off") + " now");
-                    // Block TX panel interaction while waiting for response
-                    classSet('panelTx', 'blocker', on);
-                },
-                iceState: function(state) {
-                    Janus.log("ICE state changed to " + state);
-                },
-                mediaState: function(medium, on, mid) {
-                    Janus.log("Janus " + (on ? "started" : "stopped") + " receiving our " + medium + " (mid=" + mid + ")");
-                },
-                webrtcState: function(on) {
-                    Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
-                },
-                onmessage: function(msg, jsep) {
-                    Janus.debug(" ::: Got a message :::", msg);
-                    const event = msg.audiobridge;
-                    Janus.debug("Event: " + event);
-                    switch (event) {
-                        case "joined":
-                            gMyId = msg.id;
-                            Janus.log("Successfully joined room " + msg.room + " with ID " + gMyId);
-                            if (!gWebrtcUp) {
-                                gWebrtcUp = true;
-                                // Publish our stream
-                                gMusicTx = gStatus[channelIdLookup(msg.room)].music;
-                                getMicTrack(function(track) {
-                                    gSendMixerHandle.createOffer({
-                                        tracks: [
-                                            track,
-                                            {
-                                                type: 'video',
-                                                capture: false,
-                                                recv: false
-                                            }
-                                        ],
-                                        customizeSdp: function(jsep) {
-                                            if (gStereo && jsep.sdp.indexOf("gStereo=1") == -1) {
-                                                // Make sure that our offer contains gStereo too
-                                                jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
-                                            }
-                                        },
-                                        success: function(jsep) {
-                                            gJespTx = jsep;
-                                            Janus.debug("Got SDP!", jsep);
-                                            const publish = {
-                                                request: "configure",
-                                                muted: false
-                                            };
-                                            gSendMixerHandle.send({
-                                                message: publish,
-                                                jsep: jsep
-                                            });
-                                            // Start video if available
-                                            if (!gVidPlaying && gStatus[channelNumberLookup('Video Channel')].videoValid) {
-                                                gVidPlaying = true;
-                                                loadVideo();
-                                            }
-                                        },
-                                        error: function(error) {
-                                            Janus.error("WebRTC error:", error);
-                                        }
-                                    });
-                                });
-                            }
-                            break;
-                        case "roomchanged":
-                            gMyId = msg.id;
-                            Janus.log("Moved to room " + msg.room + ", new ID: " + myid);
-                            break;
-                        case "destroyed":
-                            Janus.warn("The room has been destroyed!");
-                            break;
-                        case "event":
-                            if (msg.participants) {
-                                const list = msg.participants;
-                                Janus.debug("Got a list of participants:", list);
-                            } else if (msg.error) {
-                                if (msg.error_code == 489) {
-                                    authorisationFail();
-                                }
-                                Janus.error(msg.error);
-                            }
-                            if (msg.leaving) {
-                                const leaving = msg.leaving;
-                                Janus.log("Participant left: " + leaving);
-                            }
-                            break;
-                        case "left":
-                            Janus.log("Left room", jsep);
-                            gSendMixerHandle.hangup();
-                            break;
-                        default:
-                            Janus.warn("Unhandled event: " + event);
-                            break;
-                    }
-                    if (jsep) {
-                        Janus.debug("Handling SDP as well...", jsep);
-                        gSendMixerHandle.handleRemoteJsep({
-                            jsep: jsep
-                        });
-                    }
-                },
-                onlocaltrack: function(track, on) {
-
-                },
-                // We ignore mid in this application as there is only ever one audio track
-                onremotetrack: function(track, mid, on) {
-                    Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
-                    if (track.kind !== "audio")
-                        return;
-                    if (!on) {
-                        gRemoteRoomStream = null;
-                        gJanusSend.destroy();
-                        return;
-                    }
-                    if (gRemoteRoomStream)
-                        return;
-                    gRemoteRoomStream = new MediaStream();
-                    gRemoteRoomStream.addTrack(track.clone());
-                    const audio = document.getElementById('audioRoom');
-                    Janus.attachMediaStream(audio, gRemoteRoomStream);
-                },
-                oncleanup: function() {
-                    Janus.debug("Clean up request");
-                }
-            });
+function attachAudiobridge(gen, onAttached) {
+    const seq = ++gAttachSeq.tx;
+    // Ignore callbacks from handles that have since been replaced
+    const current = function() {
+        return (gen === gSessionGen) && (seq === gAttachSeq.tx);
+    };
+    gJanus.attach({
+        // Audiobridge is used for the translator to uplink the audio.
+        // If another translator appears then they will hear each other.
+        // This is useful for handing over from one translator to another without breaking the transmission
+        plugin: "janus.plugin.audiobridge",
+        opaqueId: gOpaqueIdSend,
+        success: function(pluginHandle) {
+            if (!current()) {
+                pluginHandle.detach();
+                return;
+            }
+            gSendMixerHandle = pluginHandle;
+            Janus.log("Plugin attached! (" + gSendMixerHandle.getPlugin() + ", id=" + gSendMixerHandle.getId() + ")");
+            onAttached();
         },
         error: function(error) {
-            Janus.error(error);
+            Janus.error("Error attaching plugin... " + error);
+            if (current()) {
+                sessionLost("audiobridge attach failed");
+            }
         },
-        destroyed: function() {
-            Janus.log("Send destroyed, re-initialising");
-            gWebrtcUp = false;
-            gSendMixerHandle = null;
-            gJanusSend = null;
-            sendInit();
-        }
-    });
-}
-
-function receiveOjb(isVideo) {
-    return new Janus({
-        server: gServer,
-        iceServers: gSettings.iceServers,
-        success: function() {
-            ((isVideo) ? gJanusVideoReceive : gJanusReceive).attach({
-                // Receive a translation channel stream either relayed from the corresponding translator room or received on Janus via RTP or RTSP
-                plugin: "janus.plugin.streaming",
-                gOpaqueId: gOpaqueId,
-                iceState: function(state) {
-                    Janus.log("ICE state changed to " + state);
-                },
-                webrtcState: function(on) {
-                    Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
-                },
-                slowLink: function(uplink, lost, mid) {
-                    Janus.warn("Janus reports problems " + (uplink ? "sending" : "receiving") +
-                        " packets on mid " + mid + " (" + lost + " lost packets)");
-                },
-                success: function(pluginHandle) {
-                    if (isVideo) {
-                        gVideoStreamingHandle = pluginHandle;
-                    } else {
-                        gStreamingHandle = pluginHandle;
-                    }
-                    Janus.log("Plugin attached! (" + pluginHandle.getPlugin() + ", id=" + pluginHandle.getId() + ")");
-                    pollStatus();
-                },
-                error: function(error) {
-                    Janus.error("Error attaching plugin... " + error);
-                },
-                onmessage: function(msg, jsep) {
-                    Janus.debug("Got message...");
-                    Janus.debug(msg);
-                    if (jsep !== undefined && jsep !== null) {
-                        Janus.debug("Handling SDP as well...");
-                        Janus.debug(jsep);
-                        let stereo = (jsep.sdp.indexOf("stereo=1") !== -1);
-                        let handle = (isVideo) ? gVideoStreamingHandle : gStreamingHandle;
-                        handle.createAnswer({
-                            jsep: jsep,
-                            customizeSdp: function(jsep) {
-                                if (stereo && jsep.sdp.indexOf("stereo=1") == -1) {
-                                    // Make sure that our offer contains stereo too
-                                    jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
-                                }
-                            },
-                            // We want recvonly audio and, if negotiated, datachannels
-                            tracks: [{
-                                    type: 'audio',
-                                    capture: false,
-                                    recv: true
+        consentDialog: function(on) {
+            Janus.debug("Consent dialog should be " + (on ? "on" : "off") + " now");
+            // Block TX panel interaction while waiting for response
+            classSet('panelTx', 'blocker', on);
+        },
+        iceState: function(state) {
+            if (current()) {
+                onIceState('tx', state);
+            }
+        },
+        mediaState: function(medium, on, mid) {
+            Janus.log("Janus " + (on ? "started" : "stopped") + " receiving our " + medium + " (mid=" + mid + ")");
+        },
+        webrtcState: function(on) {
+            Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
+        },
+        slowLink: function(uplink, lost, mid) {
+            Janus.warn("Janus reports problems " + (uplink ? "sending" : "receiving") +
+                " packets on mid " + mid + " (" + lost + " lost packets)");
+        },
+        onmessage: function(msg, jsep) {
+            if (!current()) return;
+            Janus.debug(" ::: Got a message :::", msg);
+            const event = msg.audiobridge;
+            Janus.debug("Event: " + event);
+            switch (event) {
+                case "joined":
+                    gMyId = msg.id;
+                    Janus.log("Successfully joined room " + msg.room + " with ID " + gMyId);
+                    if (!gWebrtcUp) {
+                        gWebrtcUp = true;
+                        resetMediaState('tx');
+                        // Publish our stream
+                        const txChannel = channelIdLookup(msg.room);
+                        gMusicTx = (txChannel >= 0) && gStatus[txChannel].music;
+                        getMicTrack(function(track) {
+                            gSendMixerHandle.createOffer({
+                                tracks: [
+                                    track,
+                                    {
+                                        type: 'video',
+                                        capture: false,
+                                        recv: false
+                                    }
+                                ],
+                                customizeSdp: customizeStereoSdp,
+                                success: function(jsep) {
+                                    Janus.debug("Got SDP!", jsep);
+                                    const publish = {
+                                        request: "configure",
+                                        muted: gMuteIntention
+                                    };
+                                    gSendMixerHandle.send({
+                                        message: publish,
+                                        jsep: jsep
+                                    });
+                                    // Start video if available
+                                    const vidChannel = channelNumberLookup('Video Channel');
+                                    if (!gVidPlaying && (vidChannel >= 0) && gStatus[vidChannel].videoValid) {
+                                        gVidPlaying = true;
+                                        loadVideo();
+                                    }
                                 },
-                                {
-                                    type: 'video',
-                                    capture: false,
-                                    recv: true
-                                },
-                                {
-                                    type: 'data'
+                                error: function(error) {
+                                    Janus.error("WebRTC error:", error);
+                                    gWebrtcUp = false;
                                 }
-                            ],
-                            success: function(jsep) {
-                                Janus.debug("Got SDP!");
-                                Janus.debug(jsep);
-                                const body = {
-                                    "request": "start"
-                                };
-                                handle.send({
-                                    "message": body,
-                                    "jsep": jsep
-                                });
-                            },
-                            error: function(error) {
-                                Janus.error("WebRTC error:", error);
-                            }
+                            });
                         });
                     }
-                },
-                // We ignore mid in this application as there is only ever one audio track
-                onremotetrack: function(track, mid, on) {
-                    Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
-                    //if(gRemoteStream || track.kind !== "audio" || track.kind !== "video")
-                    //    return;
-                    // We only have one track in this application
-                    const vidAudio = document.getElementById('videoStreamAudio');
-                    if (!on) {
-                        if (isVideo) {
-                            gRemoteVidAudioStream = null;
-                            gRemoteVidStream = null;
-                        } else {
-                            gRemoteStream = null;
-                            vidAudio.volume = 1;
+                    break;
+                case "roomchanged":
+                    gMyId = msg.id;
+                    Janus.log("Moved to room " + msg.room + ", new ID: " + gMyId);
+                    break;
+                case "destroyed":
+                    Janus.warn("The room has been destroyed!");
+                    break;
+                case "event":
+                    if (msg.participants) {
+                        const list = msg.participants;
+                        Janus.debug("Got a list of participants:", list);
+                    } else if (msg.error) {
+                        if (msg.error_code == 489) {
+                            authorisationFail();
                         }
-                        updateDisplay();
-                        return;
+                        Janus.error(msg.error);
                     }
-                    if (track.muted) {
-                        return;
+                    if (msg.leaving) {
+                        const leaving = msg.leaving;
+                        Janus.log("Participant left: " + leaving);
                     }
-                    if (isVideo) {
-                        switch (track.kind) {
-                            case 'audio':
-                                if (!gRemoteVidAudioStream) {
-                                    vidAudio.volume = 0;
-                                    gRemoteVidAudioStream = new MediaStream([track]);
-                                    gRemoteVidAudioStream.addTrack(track.clone());
-                                    Janus.attachMediaStream(vidAudio, gRemoteVidAudioStream);
-                                    vidAudio.play();
-                                    vidAudio.volume = ((gPlaying) ? gDimVolume : 1);
-                                }
-                                break;
-                            case 'video':
-                                if (!gRemoteVidStream) {
-                                    const video = document.getElementById('videoStream');
-                                    gRemoteVidStream = new MediaStream([track]);
-                                    gRemoteVidStream.addTrack(track.clone());
-                                    Janus.attachMediaStream(video, gRemoteVidStream);
-                                    video.play();
-                                    updateDisplay();
-                                }
-                                break;
-                            default:
-                                Janus.warn("Unexpected kind of remnote streaming track :", track.kind);
-                        }
-                    } else {
-                        if (track.kind === 'audio') {
-                            if (!gRemoteStream) {
-                                const audio = document.getElementById('audioStream');
-                                audio.volume = 0;
-                                gRemoteStream = new MediaStream([track]);
-                                gRemoteStream.addTrack(track.clone());
-                                Janus.attachMediaStream(audio, gRemoteStream);
-                                audio.play();
-                                audio.volume = 1;
-                                vidAudio.volume = gDimVolume;
-                            }
-                        } else {
-                            Janus.warn("Unexpected kind of remnote streaming track :", track.kind);
-                        }
-                    }
-                },
-                oncleanup: function() {
-                    Janus.debug("Clean up request");
-                    if (isVideo) {
-                        gRemoteVidStream = null;
-                        gVidPlaying = false
-                    } else {
-                        gRemoteStream = null;
-                        gPlaying = false;
-                    }
-                }
-            });
+                    break;
+                case "left":
+                    Janus.log("Left room", jsep);
+                    gSendMixerHandle.hangup();
+                    break;
+                default:
+                    Janus.warn("Unhandled event: " + event);
+                    break;
+            }
+            if (jsep) {
+                Janus.debug("Handling SDP as well...", jsep);
+                gSendMixerHandle.handleRemoteJsep({
+                    jsep: jsep
+                });
+            }
+        },
+        onlocaltrack: function(track, on) {
+
+        },
+        // We ignore mid in this application as there is only ever one audio track
+        onremotetrack: function(track, mid, on) {
+            if (!current()) return;
+            Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
+            if (track.kind !== "audio")
+                return;
+            if (!on) {
+                // Often temporary, e.g. during an ICE restart. ICE state and
+                // cleanup events decide whether recovery is needed.
+                gRemoteRoomStream = null;
+                return;
+            }
+            if (gRemoteRoomStream)
+                return;
+            gRemoteRoomStream = new MediaStream([track]);
+            const audio = document.getElementById('audioRoom');
+            Janus.attachMediaStream(audio, gRemoteRoomStream);
+        },
+        oncleanup: function() {
+            if (!current()) return;
+            Janus.debug("Clean up request");
+            gWebrtcUp = false;
+            gRemoteRoomStream = null;
+            if (gSending) {
+                // We did not ask to stop, so the connection was lost
+                recoverMedia('tx', "translator connection closed");
+            }
         }
     });
 }
 
-function receiveInit() {
-    if (gJanusReceive) {
-        return;
-    }
-    gJanusReceive = receiveOjb(false);
-}
-
-function videoReceiveInit() {
-    if (gJanusVideoReceive) {
-        return;
-    }
-    gJanusVideoReceive = receiveOjb(true);
+function attachStreaming(path, gen, onAttached) {
+    const isVideo = (path === 'video');
+    const seq = ++gAttachSeq[path];
+    // Ignore callbacks from handles that have since been replaced
+    const current = function() {
+        return (gen === gSessionGen) && (seq === gAttachSeq[path]);
+    };
+    let handle = null;
+    gJanus.attach({
+        // Receive a translation channel stream either relayed from the corresponding translator room or received on Janus via RTP or RTSP
+        plugin: "janus.plugin.streaming",
+        opaqueId: gOpaqueId,
+        iceState: function(state) {
+            if (current()) {
+                onIceState(path, state);
+            }
+        },
+        webrtcState: function(on) {
+            Janus.log("Janus says our WebRTC PeerConnection is " + (on ? "up" : "down") + " now");
+        },
+        slowLink: function(uplink, lost, mid) {
+            Janus.warn("Janus reports problems " + (uplink ? "sending" : "receiving") +
+                " packets on mid " + mid + " (" + lost + " lost packets)");
+        },
+        success: function(pluginHandle) {
+            if (!current()) {
+                pluginHandle.detach();
+                return;
+            }
+            handle = pluginHandle;
+            if (isVideo) {
+                gVideoStreamingHandle = pluginHandle;
+            } else {
+                gStreamingHandle = pluginHandle;
+            }
+            Janus.log("Plugin attached! (" + pluginHandle.getPlugin() + ", id=" + pluginHandle.getId() + ")");
+            onAttached();
+        },
+        error: function(error) {
+            Janus.error("Error attaching plugin... " + error);
+            if (current()) {
+                sessionLost("streaming attach failed");
+            }
+        },
+        onmessage: function(msg, jsep) {
+            if (!current()) return;
+            Janus.debug("Got message...");
+            Janus.debug(msg);
+            if (msg.error) {
+                Janus.warn("Streaming error: " + msg.error);
+            }
+            if (jsep !== undefined && jsep !== null) {
+                Janus.debug("Handling SDP as well...");
+                Janus.debug(jsep);
+                let stereo = (jsep.sdp.indexOf("stereo=1") !== -1);
+                handle.createAnswer({
+                    jsep: jsep,
+                    customizeSdp: function(jsep) {
+                        if (stereo && jsep.sdp.indexOf("stereo=1") == -1) {
+                            // Make sure that our offer contains stereo too
+                            jsep.sdp = jsep.sdp.replace("useinbandfec=1", "useinbandfec=1;stereo=1");
+                        }
+                    },
+                    // We want recvonly audio and, if negotiated, datachannels
+                    tracks: [{
+                            type: 'audio',
+                            capture: false,
+                            recv: true
+                        },
+                        {
+                            type: 'video',
+                            capture: false,
+                            recv: true
+                        },
+                        {
+                            type: 'data'
+                        }
+                    ],
+                    success: function(jsep) {
+                        Janus.debug("Got SDP!");
+                        Janus.debug(jsep);
+                        const body = {
+                            "request": "start"
+                        };
+                        handle.send({
+                            "message": body,
+                            "jsep": jsep
+                        });
+                    },
+                    error: function(error) {
+                        Janus.error("WebRTC error:", error);
+                    }
+                });
+            }
+        },
+        // We ignore mid in this application as there is only ever one audio track
+        onremotetrack: function(track, mid, on) {
+            if (!current()) return;
+            Janus.debug("Remote track (mid=" + mid + ") " + (on ? "added" : "removed") + ":", track);
+            const vidAudio = document.getElementById('videoStreamAudio');
+            if (!on) {
+                if (isVideo) {
+                    gRemoteVidAudioStream = null;
+                    gRemoteVidStream = null;
+                } else {
+                    gRemoteStream = null;
+                    vidAudio.volume = 1;
+                }
+                updateDisplay();
+                return;
+            }
+            if (track.muted) {
+                return;
+            }
+            if (isVideo) {
+                switch (track.kind) {
+                    case 'audio':
+                        if (!gRemoteVidAudioStream) {
+                            vidAudio.volume = 0;
+                            gRemoteVidAudioStream = new MediaStream([track]);
+                            Janus.attachMediaStream(vidAudio, gRemoteVidAudioStream);
+                            vidAudio.play().catch(function(err) {
+                                Janus.warn("Video audio play failed", err);
+                            });
+                            vidAudio.volume = ((gPlaying) ? gDimVolume : 1);
+                        }
+                        break;
+                    case 'video':
+                        if (!gRemoteVidStream) {
+                            const video = document.getElementById('videoStream');
+                            gRemoteVidStream = new MediaStream([track]);
+                            Janus.attachMediaStream(video, gRemoteVidStream);
+                            video.play().catch(function(err) {
+                                Janus.warn("Video play failed", err);
+                            });
+                            updateDisplay();
+                        }
+                        break;
+                    default:
+                        Janus.warn("Unexpected kind of remnote streaming track :", track.kind);
+                }
+            } else {
+                if (track.kind === 'audio') {
+                    if (!gRemoteStream) {
+                        const audio = document.getElementById('audioStream');
+                        audio.volume = 0;
+                        gRemoteStream = new MediaStream([track]);
+                        Janus.attachMediaStream(audio, gRemoteStream);
+                        audio.play().catch(function(err) {
+                            Janus.warn("Audio play failed", err);
+                        });
+                        audio.volume = 1;
+                        vidAudio.volume = gDimVolume;
+                        applyJitterBufferTarget(handle);
+                    }
+                } else {
+                    Janus.warn("Unexpected kind of remnote streaming track :", track.kind);
+                }
+            }
+        },
+        oncleanup: function() {
+            if (!current()) return;
+            Janus.debug("Clean up request");
+            if (isVideo) {
+                gRemoteVidStream = null;
+                gRemoteVidAudioStream = null;
+            } else {
+                gRemoteStream = null;
+            }
+            if (mediaWanted(path)) {
+                // We did not ask to stop, so the connection was lost
+                recoverMedia(path, "connection closed");
+            }
+        }
+    });
 }
 
 function initaliseLocalStorageIfRequired(name) {
@@ -724,106 +1461,133 @@ function initaliseLocalStorageIfRequired(name) {
     }
 }
 
-//Poll status every two seconds
+// Poll channel status. This doubles as the check that signalling is still alive.
 function pollStatus() {
-    if (gStreamingHandle !== null) {
-        const body = {
-            "request": "list"
-        };
-        janusLogMute(true);
-        gStreamingHandle.send({
-            "message": body,
-            success: function(result) {
-                if (result === null || result === undefined) {
-                    alert("Got no response to our query for available RX streams");
-                } else {
-                    const list = result.list;
-                    Janus.debug("Got list of streams");
-                    if (gSendMixerHandle) {
-                        gSendMixerHandle.send({
-                            "message": body,
-                            success: function(result) {
-                                let listTx = false;
-                                if (result === null || result === undefined) {
-                                    alert("Got no response to our query for available TX rooms");
-                                } else {
-                                    listTx = result.list;
-                                    Janus.debug("Got list of rooms");
-                                }
-                                let newStatus = [];
-                                for (let i = 0; i < list.length; i++) {
-                                    let mp = list[i],
-                                        validTx = false,
-                                        freeTx = true,
-                                        txParticipants = 0;
-                                    if (listTx) {
-                                        for (let j = 0; j < listTx.length; j++) {
-                                            const mpTx = listTx[j];
-                                            if (mpTx.room == mp.id) {
-                                                Janus.debug("Got match");
-                                                validTx = true;
-                                                txParticipants = mpTx.num_participants;
-                                                freeTx = (txParticipants <= ((gSendIntention) ? 1 : 0));
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    const audioStream = mp.media.find(({mid}) => mid === 'a');
-                                    const videoStream = mp.media.find(({mid}) => mid === 'v');
-                                    let audioObj = (typeof(audioStream) === 'object')
-                                    let videoObj = (typeof(videoStream) === 'object')
-                                    const audioAge = (audioStream ? audioStream.age_ms : 0);
-                                    const videoAge = (videoStream ? videoStream.age_ms : 0);
-                                    Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
-                                    const musicChannel = (mp.description.length > 1 && (mp.description.substring(0, 1) === "*"));
-                                    newStatus.push({
-                                        'name': ((musicChannel) ? (mp.description.substring(1, )) : mp.description),
-                                        'audioValid': (audioObj && mp.enabled && (audioAge < gMaxMediaAgeMs)),
-                                        'music': musicChannel,
-                                        'videoValid': (videoObj && mp.enabled && (videoAge < gMaxMediaAgeMs)),
-                                        'id': mp.id,
-                                        'validTx': validTx,
-                                        'freeTx': freeTx,
-                                        'participantsTx': txParticipants
-                                    });
-                                }
-                                // Sort array by channel ID
-                                newStatus.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
-                                // If any change then clone array
-                                if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
-                                    gStatus = JSON.parse(JSON.stringify(newStatus));
-                                    gStatusUpdate = true;
-                                    if (gStatus.length > 0) {
-                                        initaliseLocalStorageIfRequired(gStatus[0].name);
-                                    }
-                                    updateDisplay();
-                                }
-                                janusLogMute(false);
-                            },
-                            error: function(error) {
-                                Janus.error("Error polling server for TX streams... " + error);
-                                gErrorCount++;
-                                if (gErrorCount > gErrorMax) {
-                                    reloadOrJumpBack();
-                                }
-                                janusLogMute(false);
-                            }
-                        });
-                    } else {
-                        Janus.log("Send mixer handle null at present time");
+    if (!gSessionReady || !isRealHandle(gStreamingHandle)) {
+        return;
+    }
+    if (gPollInFlightSince) {
+        if (Date.now() - gPollInFlightSince < gStatusPollTimeoutMs) {
+            // Still waiting for the previous answer
+            return;
+        }
+        Janus.warn("Status poll timed out");
+        gPollSeq++;
+        gPollInFlightSince = 0;
+        janusLogMute(false);
+        pollFailed();
+        return;
+    }
+    const seq = ++gPollSeq;
+    const gen = gSessionGen;
+    const body = {
+        "request": "list"
+    };
+    const failed = function(what, error) {
+        if (seq !== gPollSeq) return;
+        gPollInFlightSince = 0;
+        janusLogMute(false);
+        if (gen !== gSessionGen) return;
+        Janus.error("Error polling server for " + what + "... " + error);
+        pollFailed();
+    };
+    gPollInFlightSince = Date.now();
+    janusLogMute(true);
+    gStreamingHandle.send({
+        "message": body,
+        success: function(result) {
+            if (seq !== gPollSeq || gen !== gSessionGen) return;
+            if (!result || !result.list) {
+                failed("RX streams", "empty response");
+                return;
+            }
+            const list = result.list;
+            Janus.debug("Got list of streams");
+            gSendMixerHandle.send({
+                "message": body,
+                success: function(resultTx) {
+                    if (seq !== gPollSeq) return;
+                    gPollInFlightSince = 0;
+                    janusLogMute(false);
+                    if (gen !== gSessionGen) return;
+                    gErrorCount = 0;
+                    let listTx = false;
+                    if (resultTx && resultTx.list) {
+                        listTx = resultTx.list;
+                        Janus.debug("Got list of rooms");
                     }
+                    applyStatus(list, listTx);
+                },
+                error: function(error) {
+                    failed("TX rooms", error);
                 }
-            },
-            error: function(error) {
-                janusLogMute(false);
-                Janus.error("Error polling server for RX streams... " + error);
-                gErrorCount++;
-                if (gErrorCount > gErrorMax) {
-                    reloadOrJumpBack();
+            });
+        },
+        error: function(error) {
+            failed("RX streams", error);
+        }
+    });
+}
+
+function pollFailed() {
+    gErrorCount++;
+    if (gErrorCount >= gErrorMax) {
+        gErrorCount = 0;
+        sessionLost("status polls failing");
+    }
+}
+
+function applyStatus(list, listTx) {
+    let newStatus = [];
+    for (let i = 0; i < list.length; i++) {
+        let mp = list[i],
+            validTx = false,
+            freeTx = true,
+            txParticipants = 0;
+        if (listTx) {
+            for (let j = 0; j < listTx.length; j++) {
+                const mpTx = listTx[j];
+                if (mpTx.room == mp.id) {
+                    Janus.debug("Got match");
+                    validTx = true;
+                    txParticipants = mpTx.num_participants;
+                    freeTx = (txParticipants <= ((gSendIntention) ? 1 : 0));
+                    break;
                 }
             }
+        }
+        const media = mp.media || [];
+        const audioStream = media.find(({mid}) => mid === 'a');
+        const videoStream = media.find(({mid}) => mid === 'v');
+        let audioObj = (typeof(audioStream) === 'object')
+        let videoObj = (typeof(videoStream) === 'object')
+        const audioAge = (audioStream ? audioStream.age_ms : 0);
+        const videoAge = (videoStream ? videoStream.age_ms : 0);
+        Janus.debug("  >> [" + mp.id + "] " + mp.description + " (" + audioAge + ")");
+        const musicChannel = (mp.description.length > 1 && (mp.description.substring(0, 1) === "*"));
+        newStatus.push({
+            'name': ((musicChannel) ? (mp.description.substring(1, )) : mp.description),
+            'audioValid': (audioObj && mp.enabled && (audioAge < gMaxMediaAgeMs)),
+            'music': musicChannel,
+            'videoValid': (videoObj && mp.enabled && (videoAge < gMaxMediaAgeMs)),
+            'id': mp.id,
+            'validTx': validTx,
+            'freeTx': freeTx,
+            'participantsTx': txParticipants
         });
     }
+    // Sort array by channel ID
+    newStatus.sort((a, b) => (a.id > b.id) ? 1 : ((b.id > a.id) ? -1 : 0));
+    // If any change then clone array
+    if (JSON.stringify(gStatus) !== JSON.stringify(newStatus)) {
+        gStatus = JSON.parse(JSON.stringify(newStatus));
+        gStatusUpdate = true;
+        if (gStatus.length > 0) {
+            initaliseLocalStorageIfRequired(gStatus[0].name);
+        }
+        updateDisplay();
+    }
+    offerResume();
 }
 
 function timedPollStatus() {
@@ -840,10 +1604,13 @@ function channelNameLookup(channel) {
 }
 
 function channelNumberLookup(name) {
+    if (!name) {
+        return -1;
+    }
     for (let channel in gStatus) {
         if (gStatus[channel].hasOwnProperty("name")) {
             if (name.toUpperCase() == gStatus[channel].name.toUpperCase()) {
-                return channel;
+                return parseInt(channel);
             }
         }
     }
@@ -854,11 +1621,21 @@ function channelIdLookup(id) {
     for (let channel in gStatus) {
         if (gStatus[channel].hasOwnProperty("id")) {
             if (id == gStatus[channel].id) {
-                return channel;
+                return parseInt(channel);
             }
         }
     }
     return -1;
+}
+
+function channelLive(name) {
+    const channel = channelNumberLookup(name);
+    return (channel >= 0) && !!gStatus[channel].audioValid;
+}
+
+function channelTxValid(name) {
+    const channel = channelNumberLookup(name);
+    return (channel >= 0) && !!gStatus[channel].validTx;
 }
 
 function updateDisplay() {
@@ -981,7 +1758,7 @@ function updateDisplay() {
     document.getElementById('passFailBox').innerHTML = LANG[gLangTx].unauthorised;
     document.getElementById('passOKButton').innerText = LANG[gLangTx].ok;
     document.getElementById('passCancelButton').innerText = LANG[gLangTx].cancel;
-    document.getElementById('stat').innerText = "";
+    updateConnIndicator();
 
     classSet('vidDiv', 'hideItem', !gSettings.videoScreenKeeperRx);
     classSet('imgDiv', 'hideItem', gSettings.videoScreenKeeperRx);
@@ -1098,46 +1875,56 @@ window.onclick = function(event) {
 
 
 function loadAudio() {
-    const body = {
-        "request": "watch",
-        "id": gStatus[channelNumberLookup(localStorage.channel)].id
-    };
-    if (gStreamingHandle) {
-        gStreamingHandle.send({
-            "message": body
-        });
+    const channel = channelNumberLookup(localStorage.channel);
+    if (channel < 0 || !isRealHandle(gStreamingHandle) || !gSessionReady) {
+        // Session recovery or the next status update will start it
+        return;
     }
+    gRxWatchId = gStatus[channel].id;
+    resetMediaState('rx');
+    gStreamingHandle.send({
+        "message": {
+            "request": "watch",
+            "id": gRxWatchId
+        }
+    });
 }
 
 function loadSendRoom() {
-    const register = {
-        request: "join",
-        codec: "opus",
-        display: "translator",
-        pin: gPasswordsTx[localStorage.channelTx]
-    };
-    register.room = gStatus[channelNumberLookup(localStorage.channelTx)].id;
-    if (gSendMixerHandle) {
-        gSendMixerHandle.send({
-            message: register
-        });
+    const channel = channelNumberLookup(localStorage.channelTx);
+    if (channel < 0 || !isRealHandle(gSendMixerHandle) || !gSessionReady) {
+        return;
     }
+    resetMediaState('tx');
+    gSendMixerHandle.send({
+        message: {
+            request: "join",
+            room: gStatus[channel].id,
+            codec: "opus",
+            display: "translator",
+            pin: gPasswordsTx[localStorage.channelTx]
+        }
+    });
 }
 
 function loadVideo() {
-    const body = {
-        "request": "watch",
-        "id": gStatus[channelNumberLookup('Video Channel')].id
-    };
-    if (gVideoStreamingHandle) {
-        gVideoStreamingHandle.send({
-            "message": body
-        });
+    const channel = channelNumberLookup('Video Channel');
+    if (channel < 0 || !isRealHandle(gVideoStreamingHandle) || !gSessionReady) {
+        return;
     }
+    gVideoWatchId = gStatus[channel].id;
+    resetMediaState('video');
+    gVideoStreamingHandle.send({
+        "message": {
+            "request": "watch",
+            "id": gVideoWatchId
+        }
+    });
 }
 
 function startPlay() {
     if (!gPlaying) {
+        gPlaying = true;
         loadAudio();
         const vidPlayer = document.getElementById('playVid');
         if (vidPlayer && gSettings.videoScreenKeeperRx) {
@@ -1150,13 +1937,13 @@ function startPlay() {
         // Activate wake lock and silent oscillator
         requestWakeLock();
         createSilentOscillator();
-        gPlaying = true;
         updateDisplay();
     }
 }
 
 function startSend() {
     if (!gSending) {
+        gSending = true;
         loadSendRoom();
         const vidPlayerTx = document.getElementById('sendingVidOn');
         if (vidPlayerTx && gSettings.videoScreenKeeperTx) {
@@ -1169,7 +1956,6 @@ function startSend() {
         // Activate wake lock and silent oscillator
         requestWakeLock();
         createSilentOscillator();
-        gSending = true;
         updateDisplay();
     }
 }
@@ -1194,13 +1980,18 @@ function muteSend() {
 }
 
 function stopPlay() {
-    const body = {
-        "request": "stop"
-    };
-    gStreamingHandle.send({
-        "message": body
-    });
-    gStreamingHandle.hangup();
+    // Clear the flag first so the cleanup that follows is not mistaken for a dropout
+    const wasPlaying = gPlaying;
+    gPlaying = false;
+    if (wasPlaying && isRealHandle(gStreamingHandle)) {
+        gStreamingHandle.send({
+            "message": {
+                "request": "stop"
+            }
+        });
+        gStreamingHandle.hangup();
+    }
+    resetMediaState('rx');
     const vidPlayer = document.getElementById('playVid');
     if (vidPlayer) {
         vidPlayer.pause();
@@ -1218,22 +2009,27 @@ function stopPlay() {
 }
 
 function stopSend() {
-    if (gVidPlaying) {
-        const body = {
-            "request": "stop"
-        };
+    // Clear the flags first so the cleanup that follows is not mistaken for a dropout
+    const wasSending = gSending;
+    const wasVidPlaying = gVidPlaying;
+    gSending = false;
+    gVidPlaying = false;
+    if (wasVidPlaying && isRealHandle(gVideoStreamingHandle)) {
         gVideoStreamingHandle.send({
-            "message": body
+            "message": {
+                "request": "stop"
+            }
         });
         gVideoStreamingHandle.hangup();
     }
-    if (gSending) {
-        if (gWebrtcUp) {
-            const body = {
-                "request": "leave"
-            };
+    resetMediaState('video');
+    resetMediaState('tx');
+    if (wasSending) {
+        if (gWebrtcUp && isRealHandle(gSendMixerHandle)) {
             gSendMixerHandle.send({
-                "message": body
+                "message": {
+                    "request": "leave"
+                }
             });
         }
         const vidPlayerTx = document.getElementById('sendingVidOn');
@@ -1415,7 +2211,7 @@ function clickSenderStartMuteEnact() {
 }
 // The main start/stop button handler
 function clickSenderStopEnact() {
-    if (gSendIntention && gSending) {
+    if (gSendIntention) {
         gSendIntention = false;
         gMuteIntention = false;
         Janus.debug("Stop on clickSenderStopEnact");

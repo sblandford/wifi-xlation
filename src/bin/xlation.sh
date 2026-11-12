@@ -13,9 +13,60 @@ ssl_check () {
     return 1
 }
 
+# Percent-encode an S3 object key, leaving the path separators alone
+uri_encode () {
+    local LC_ALL=C
+    local s="$1" out="" c i
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        case "$c" in
+            [a-zA-Z0-9.~_/-]) out+="$c" ;;
+            *) out+=$( printf '%%%02X' "'$c" ) ;;
+        esac
+    done
+    echo -n "$out"
+}
+
+# Escape a value for a double-quoted curl config file entry
+curl_config_escape () {
+    local s="${1//\\/\\\\}"
+    echo -n "${s//\"/\\\"}"
+}
+
+# Fetch s3://bucket/key to a file using curl's built-in AWS Signature V4 support.
+# Uses AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, optional AWS_SESSION_TOKEN and
+# AWS_DEFAULT_REGION (looked up from the bucket if not set). S3_ENDPOINT can point
+# at an S3-compatible service instead of AWS.
+s3_get () {
+    local url="$1" dest="$2"
+    local path="${url#*://}"
+    local bucket="${path%%/*}" key="${path#*/}"
+    local region="$AWS_DEFAULT_REGION" endpoint
+    if [[ -z "$region" ]] && [[ -z "$S3_ENDPOINT" ]]; then
+        # S3 reports a bucket's region even to unauthenticated requests
+        region=$( curl -sI --max-time 20 "https://$bucket.s3.amazonaws.com/" | tr -d '\r' \
+            | awk -F': ' 'tolower($1) == "x-amz-bucket-region" { print $2 }' )
+    fi
+    [[ -z "$region" ]] && region="us-east-1"
+    if [[ ${#S3_ENDPOINT} -gt 0 ]]; then
+        endpoint="${S3_ENDPOINT%/}/$bucket"
+    elif [[ "$bucket" == *.* ]]; then
+        # Dotted bucket names don't match the wildcard TLS certificate, so use path style
+        endpoint="https://s3.$region.amazonaws.com/$bucket"
+    else
+        endpoint="https://$bucket.s3.$region.amazonaws.com"
+    fi
+    rm -f "$dest"
+    # Credentials go in through stdin so that they don't appear in the process list
+    {
+        echo "user = \"$( curl_config_escape "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY" )\""
+        [[ -n "$AWS_SESSION_TOKEN" ]] && echo "header = \"x-amz-security-token: $( curl_config_escape "$AWS_SESSION_TOKEN" )\""
+    } | curl --config - --silent --show-error --fail --max-time 60 \
+        --aws-sigv4 "aws:amz:$region:s3" \
+        --output "$dest" "$endpoint/$( uri_encode "$key" )"
+}
+
 ssl_copy () {
-    # Note that AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION are set as global
-    # variables that will be picked up by the s3cmd command
     ssl_changed=false
     mkdir -p "$NGINX_SSL_DIR"
     if [[ -e "$SSL_CHAIN" ]]; then
@@ -23,7 +74,7 @@ ssl_copy () {
     elif [[ "${SSL_CHAIN,,}" =~ ^s3:// ]]; then
         # Try a few times before giving up
         for (( i = 1; i <= 20; i++ )); do
-            s3cmd -qf get "$SSL_CHAIN" "$CERTS_FILE""_tmp" && break
+            s3_get "$SSL_CHAIN" "$CERTS_FILE""_tmp" && break
             echo "Attempt $i of 20 to fetch $SSL_CHAIN failed"
             sleep 30
         done
@@ -38,7 +89,7 @@ ssl_copy () {
     if [[ -e "$SSL_KEY" ]]; then
         cp -f "$SSL_KEY" "$KEY_FILE""_tmp"
     elif [[ "${SSL_KEY,,}" =~ ^s3:// ]]; then
-        s3cmd -qf get "$SSL_KEY" "$KEY_FILE""_tmp"
+        s3_get "$SSL_KEY" "$KEY_FILE""_tmp"
     fi
     if ssl_check "key" "$KEY_FILE""_tmp"; then
         cmp -s "$KEY_FILE""_tmp" "$KEY_FILE" || ssl_changed=true
@@ -113,6 +164,15 @@ if [[ "${STUN_IGNORE_FAIL,,}" =~ true ]]; then
 else
     param "ignore_unreachable_ice_server" "false"
 fi
+# Keep sessions alive long enough for a phone to roam or wake up and reclaim them
+[[ "$JANUS_SESSION_TIMEOUT" =~ ^[0-9]+$ ]] && param "session_timeout" "$JANUS_SESSION_TIMEOUT"
+[[ "$JANUS_RECLAIM_TIMEOUT" =~ ^[0-9]+$ ]] && param "reclaim_session_timeout" "$JANUS_RECLAIM_TIMEOUT"
+# Note: ice_keepalive_conncheck is deliberately left off. Janus warns that libnice
+# newer than 0.1.18 (Ubuntu 26.04 ships 0.1.23) drops connections after 50s with it enabled.
+# DSCP 46 (EF) puts media in the WiFi voice queue (WMM AC_VO) on most access points
+if [[ "$DSCP" =~ ^[0-9]+$ ]] && [[ "$DSCP" -gt 0 ]]; then
+    param "dscp" "$DSCP"
+fi
 
 
 file="/etc/janus/janus.transport.http.jcfg"
@@ -124,17 +184,77 @@ param "admin_interface" "\"lo\""
 param "enforce_cors" "false"
 param "mhd_connection_limit" "$MAX_HTTP_CONNS"
 
-# Configure the websockets transport if enabled
-if [[ "${WEBSOCKETS,,}" =~ true ]]; then
+# Configure the websockets transport.
+# WS_PROXY: plain ws on localhost only, reached through Nginx on the web port.
+# WEBSOCKETS: the original direct ws/wss ports, kept for existing setups.
+websockets_enable=false
+if [[ "${WS_PROXY,,}" =~ true ]] || [[ "${WEBSOCKETS,,}" =~ true ]]; then
+    websockets_enable=true
     file="/etc/janus/janus.transport.websockets.jcfg"
     param "enforce_cors" "false"
-    if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
-        param "ws" "false"
+    param "ws" "true"
+    if [[ ! "${WEBSOCKETS,,}" =~ true ]] || [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
+        param "ws_ip" "\"127.0.0.1\""
+    fi
+    if [[ "${WEBSOCKETS,,}" =~ true ]] && [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
         param "wss" "true"
         param "cert_pem" "\"$CERTS_FILE\""
         param "cert_key" "\"$KEY_FILE\""
     fi
 fi
+
+# Nginx locations shared by the http and https servers
+nginx_ws_location=""
+if [[ "${WS_PROXY,,}" =~ true ]]; then
+    nginx_ws_location="
+        # Janus WebSockets on the same port as the page, so nothing extra
+        # needs to get through firewalls or captive portals
+        location ~ ^/janus-ws(\$|/) {
+            proxy_pass http://127.0.0.1:8188;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade \$http_upgrade;
+            proxy_set_header   Connection \"upgrade\";
+            proxy_set_header   Host \$host;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto \$scheme;
+            proxy_read_timeout 120s;
+            proxy_send_timeout 120s;
+        }"
+fi
+nginx_locations="
+        # Make browsers check for a newer copy every time (cheap 304 when unchanged)
+        # so that devices never keep running an old version of the app
+        location / {
+                try_files \$uri \$uri/ =404;
+                add_header Cache-Control \"no-cache\" always;
+                add_header Access-Control-Allow-Origin * always;
+        }
+
+        location /json/ {
+                try_files \$uri =404;
+                add_header Cache-Control \"no-store\" always;
+                add_header Access-Control-Allow-Origin * always;
+        }
+
+        location ~ ^/janus(\$|/) {
+            proxy_pass http://127.0.0.1:8088;
+            proxy_set_header   Upgrade \$http_upgrade;
+            proxy_set_header   Connection keep-alive;
+            proxy_set_header   Host \$host;
+            proxy_cache_bypass \$http_upgrade;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto \$scheme;
+        }
+        location ~ ^/admin(\$|/) {
+            proxy_pass http://127.0.0.1:7088;
+            proxy_set_header   Upgrade \$http_upgrade;
+            proxy_set_header   Connection keep-alive;
+            proxy_set_header   Host \$host;
+            proxy_cache_bypass \$http_upgrade;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto \$scheme;
+        }
+$nginx_ws_location"
 
 # Configure NGinx
 echo "user www-data;
@@ -234,8 +354,9 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
 }" >/etc/nginx/sites-enabled/default
         
     echo "server {
-        listen "$nginx_bind_ip"$HTTPS_STATIC_PORT ssl http2 default_server;
-        listen [::]:$HTTPS_STATIC_PORT ssl http2 default_server;
+        listen "$nginx_bind_ip"$HTTPS_STATIC_PORT ssl default_server;
+        listen [::]:$HTTPS_STATIC_PORT ssl default_server;
+        http2 on;
 
         root /var/www/html;
 
@@ -271,36 +392,15 @@ if [[ "${HTTPS_ENABLE,,}" =~ true ]]; then
         client_body_timeout 10;
 
         # if client stop responding, free up memory -- default 60
-        send_timeout 2;
+        # Long enough to ride out a short WiFi stall without dropping signalling
+        send_timeout 10;
 
         # server will close connection after this time -- default 75
         keepalive_timeout 30;
 
         # number of requests client can make over keep-alive -- for testing environment
         keepalive_requests 100000;
-    
-        location / {
-                try_files \$uri \$uri/ =404;
-        }
-
-        location ~ ^/janus($|/) {
-            proxy_pass http://127.0.0.1:8088;
-            proxy_set_header   Upgrade \$http_upgrade;
-            proxy_set_header   Connection keep-alive;
-            proxy_set_header   Host \$host;
-            proxy_cache_bypass \$http_upgrade;
-            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto \$scheme;
-        }
-        location ~ ^/admin($|/) {
-            proxy_pass http://127.0.0.1:7088;
-            proxy_set_header   Upgrade \$http_upgrade;
-            proxy_set_header   Connection keep-alive;
-            proxy_set_header   Host \$host;
-            proxy_cache_bypass \$http_upgrade;
-            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto \$scheme;
-        }
+$nginx_locations
         
         ssl_certificate \"$CERTS_FILE\";
         ssl_certificate_key \"$KEY_FILE\";
@@ -323,29 +423,7 @@ else
         # No 'performance boosting' settings here since non-https mode
         # can only be for testing due to WebRTC SSL requirements
         access_log off;
-        
-        location / {
-                try_files \$uri \$uri/ =404;
-        }
-        
-        location ~ ^/janus($|/) {
-            proxy_pass http://127.0.0.1:8088;
-            proxy_set_header   Upgrade \$http_upgrade;
-            proxy_set_header   Connection keep-alive;
-            proxy_set_header   Host \$host;
-            proxy_cache_bypass \$http_upgrade;
-            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto \$scheme;
-        }
-        location ~ ^/admin($|/) {
-            proxy_pass http://127.0.0.1:7088;
-            proxy_set_header   Upgrade \$http_upgrade;
-            proxy_set_header   Connection keep-alive;
-            proxy_set_header   Host \$host;
-            proxy_cache_bypass \$http_upgrade;
-            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto \$scheme;
-        }
+$nginx_locations
 }" >/etc/nginx/sites-enabled/default
 fi
 
@@ -467,7 +545,8 @@ room-$(( id + 1 )): {
     pin = \"$pin\"
     sampling_rate = 48000
     record = false
-    default_expectedloss = 5
+    default_expectedloss = ${OPUS_EXPECTED_LOSS:-15}
+    default_prebuffering = ${AUDIOBRIDGE_PREBUFFER:-6}
     default_bitrate = 32768
     audio_level_average = 10
     rtp_forward_host = \"$rtp_host_ip\"
@@ -482,7 +561,7 @@ done
 # Disable unwanted plugins
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_voicemail.*/\1\2\"libjanus_voicemail.so,libjanus_echotest.so,libjanus_duktape.so,libjanus_textroom.so,libjanus_sip.so,libjanus_recordplay.so,libjanus_videocall.so,libjanus_lua.so,libjanus_videoroom.so,libjanus_nosip.so\"/" /etc/janus/janus.jcfg
 # Disable unwanted transports
-[[ "${WEBSOCKETS,,}" =~ true ]] || websockets_exlude="libjanus_websockets.so,"
+[[ "$websockets_enable" == "true" ]] || websockets_exlude="libjanus_websockets.so,"
 sed -i -r "s/^(\s*)#?(disable\s*=\s*).*libjanus_rabbitmq.*/\1\2\"$websockets_exlude""libjanus_pfunix.so,libjanus_nanomsg.so,libjanus_mqtt.so,libjanus_rabbitmq.so\"/" /etc/janus/janus.jcfg
 
 # Create settings file for player application
@@ -500,10 +579,45 @@ else
     echo "    \"ws\":false," >>"$JS_SETTINGS"
 fi
 
+if [[ "${WS_PROXY,,}" =~ true ]]; then
+    echo "    \"wsProxy\":true," >>"$JS_SETTINGS"
+    echo "    \"wsProxyPath\":\"janus-ws\"," >>"$JS_SETTINGS"
+else
+    echo "    \"wsProxy\":false," >>"$JS_SETTINGS"
+fi
+
+json_escape () {
+    local s="${1//\\/\\\\}"
+    echo -n "${s//\"/\\\"}"
+}
+ice_servers=()
 if [[ ${#STUN_SERVER} -gt 0 ]] && [[ ${#STUN_PORT} -gt 0 ]]; then
-    echo "    \"iceServers\":[{\"urls\": \"stun:$STUN_SERVER:$STUN_PORT\"}]," >>"$JS_SETTINGS"
+    ice_servers+=("{\"urls\": \"stun:$STUN_SERVER:$STUN_PORT\"}")
+fi
+# TURN lets phones that roam off the venue WiFi onto mobile data reach Janus
+if [[ ${#TURN_URLS} -gt 0 ]]; then
+    turn_urls=""
+    IFS=',' read -ra turn_list <<< "$TURN_URLS"
+    for url in "${turn_list[@]}"; do
+        url="$( echo "$url" | tr -d '[:space:]' )"
+        [[ ${#url} -gt 0 ]] && turn_urls="$turn_urls${turn_urls:+, }\"$( json_escape "$url" )\""
+    done
+    ice_servers+=("{\"urls\": [$turn_urls], \"username\": \"$( json_escape "$TURN_USER" )\", \"credential\": \"$( json_escape "$TURN_PASSWORD" )\"}")
+fi
+if [[ ${#ice_servers[@]} -gt 0 ]]; then
+    ice_json=""
+    for server in "${ice_servers[@]}"; do
+        ice_json="$ice_json${ice_json:+, }$server"
+    done
+    echo "    \"iceServers\":[$ice_json]," >>"$JS_SETTINGS"
 else
     echo "    \"iceServers\":null," >>"$JS_SETTINGS"
+fi
+
+if [[ "$JITTER_BUFFER_MS" =~ ^[0-9]+$ ]] && [[ "$JITTER_BUFFER_MS" -gt 0 ]]; then
+    echo "    \"jitterBufferMs\":$JITTER_BUFFER_MS," >>"$JS_SETTINGS"
+else
+    echo "    \"jitterBufferMs\":0," >>"$JS_SETTINGS"
 fi
 
 if [[ "${VIDEO_SCREEN_KEEPER_RX,,}" =~ true ]]; then

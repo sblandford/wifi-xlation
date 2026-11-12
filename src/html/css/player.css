@@ -465,3 +465,27 @@ div.stat {
 .rxVid {
     height: 10em;
 }
+
+/* Shown after an automatic reload: browsers need a tap before audio can restart */
+.resumeBox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.75);
+}
+.resumeBtn {
+    padding: 1.5em;
+    font-size: 1.5em;
+    font-weight: bold;
+    min-width: 10em;
+    cursor: pointer;
+    border: 0.2em solid DodgerBlue;
+    background-color: Black;
+    color: white;
+}

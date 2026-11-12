@@ -1,6 +1,6 @@
 # WiFi-xlation
 ## Venue WiFi Audio Translation for mobile devices
-A simultaneous audio translation system for venues using local WiFi and the web browser of mobile devices based on Web RTC. The server is packaged in a [Docker](https://www.docker.com/) utilising the the [Janus WebRTC Server](https://github.com/meetecho/janus-gateway), [Nginx web server](https://www.nginx.com/) and the [Ubuntu Lunar](https://hub.docker.com/_/ubuntu) image.
+A simultaneous audio translation system for venues using local WiFi and the web browser of mobile devices based on Web RTC. The server is packaged in a [Docker](https://www.docker.com/) utilising the the [Janus WebRTC Server](https://github.com/meetecho/janus-gateway), [Nginx web server](https://www.nginx.com/) and the [Ubuntu 26.04 LTS](https://hub.docker.com/_/ubuntu) image.
 
 Any web browser can be used to send or receive the translation. The UI currently targets mobile devices to provide a simple, clear interface for language selection and reception.
 
@@ -9,6 +9,8 @@ A QR code can be popped up to share the translation URL around the venue.
 A simple configuration file, languages.conf, contains the names of the language channels and corresponding passwords for the translators.
 
 It is also possible to send audio to a channel using [Opus](https://opus-codec.org/) over RTP, for example, from [ffmpeg](https://ffmpeg.org/). This way, one channel can then be used to relay the on-stage sound to translators in different rooms of the venue.
+
+The client is designed to cope with roaming WiFi. If the connection drops or the device moves to another access point or network, it automatically restarts the media connection, reclaims or recreates its server session and carries on playing (or broadcasting) without reloading the page. See the "Connection reliability and latency" section of the [Docker variables](src/doc/Docker%20variables%20and%20mount%20points.md) document for the related settings.
 
 Multiple translators can use the same channel simultaneously. This is so that they can hand over to each other without breaking the transmission. The translators on the same channel will be able to hear each other.
 

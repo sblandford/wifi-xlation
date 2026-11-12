@@ -11,7 +11,11 @@ const LANG = {
         "cancel": "Cancel",
         "show": "Show",
         "set password": "Set password",
-        "unauthorised": "Unauthorised"
+        "unauthorised": "Unauthorised",
+        "reconnecting": "Reconnecting…",
+        "offline": "Offline",
+        "tap to resume": "Tap to resume",
+        "tap to resume broadcast": "Tap to resume broadcast"
     },
     "de" : {
         "select" : "Wählen",
@@ -25,7 +29,11 @@ const LANG = {
         "cancel": "Abbrechen",
         "show": "Anzeigen",
         "set password": "Passwort festlegen",
-        "unauthorised": "Unbefugt"
+        "unauthorised": "Unbefugt",
+        "reconnecting": "Verbindung wird wiederhergestellt…",
+        "offline": "Offline",
+        "tap to resume": "Tippen zum Fortsetzen",
+        "tap to resume broadcast": "Tippen, um die Übertragung fortzusetzen"
     },
     "es" : {
         "select" : "Seleccionar",
@@ -39,7 +47,11 @@ const LANG = {
         "cancel": "Cancelar",
         "show": "Muestrar",
         "set password": "Configurar la clave",
-        "unauthorised": "No autorizado"
+        "unauthorised": "No autorizado",
+        "reconnecting": "Reconectando…",
+        "offline": "Sin conexión",
+        "tap to resume": "Toque para continuar",
+        "tap to resume broadcast": "Toque para reanudar la transmisión"
     },
     "fr" : {
         "select" : "Sélectionnez",
@@ -53,7 +65,11 @@ const LANG = {
         "cancel": "Annuler",
         "show": "Montrer",
         "set password": "Définir le mot de passe",
-        "unauthorised": "Non autorisé"
+        "unauthorised": "Non autorisé",
+        "reconnecting": "Reconnexion…",
+        "offline": "Hors ligne",
+        "tap to resume": "Touchez pour reprendre",
+        "tap to resume broadcast": "Touchez pour reprendre la diffusion"
     },
     "hi" : {
         "select" : "चुनते हैं",
@@ -81,7 +97,11 @@ const LANG = {
         "cancel": "Annuleren",
         "show": "Laten zien",
         "set password": "Stel een wachtwoord in",
-        "unauthorised": "ongeautoriseerd"
+        "unauthorised": "ongeautoriseerd",
+        "reconnecting": "Opnieuw verbinden…",
+        "offline": "Offline",
+        "tap to resume": "Tik om verder te gaan",
+        "tap to resume broadcast": "Tik om de uitzending te hervatten"
     },
     "pl" : {
         "select" : "Wybierz",
@@ -95,7 +115,11 @@ const LANG = {
         "cancel": "Anulować",
         "show": "Pokazać",
         "set password": "Ustaw hasło",
-        "unauthorised": "Nieautoryzowany"
+        "unauthorised": "Nieautoryzowany",
+        "reconnecting": "Ponowne łączenie…",
+        "offline": "Brak połączenia",
+        "tap to resume": "Dotknij, aby wznowić",
+        "tap to resume broadcast": "Dotknij, aby wznowić transmisję"
     },
     "pt" : {
         "select" : "Selecione",
@@ -109,7 +133,11 @@ const LANG = {
         "cancel": "Cancelar",
         "show": "Mostrar",
         "set password": "Configurar palavra-passe",
-        "unauthorised": "Não autorizado"
+        "unauthorised": "Não autorizado",
+        "reconnecting": "A reconectar…",
+        "offline": "Sem ligação",
+        "tap to resume": "Toque para retomar",
+        "tap to resume broadcast": "Toque para retomar a transmissão"
     },
     "ta" : {
         "select" : "தேர்வு",
@@ -137,7 +165,11 @@ const LANG = {
         "cancel": "Отмена",
         "show": "Показывать",
         "set password": "Установка пароля",
-        "unauthorised": "Неавторизованный"
+        "unauthorised": "Неавторизованный",
+        "reconnecting": "Переподключение…",
+        "offline": "Нет сети",
+        "tap to resume": "Нажмите, чтобы продолжить",
+        "tap to resume broadcast": "Нажмите, чтобы возобновить трансляцию"
     },
     "it" : {
         "select" : "Seleziona",
@@ -151,7 +183,11 @@ const LANG = {
         "cancel": "Annulla",
         "show": "Mostra",
         "set password": "Imposta password",
-        "unauthorised": "Non autorizzato"
+        "unauthorised": "Non autorizzato",
+        "reconnecting": "Riconnessione…",
+        "offline": "Non in linea",
+        "tap to resume": "Tocca per riprendere",
+        "tap to resume broadcast": "Tocca per riprendere la trasmissione"
     }
 }
 

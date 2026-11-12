@@ -4,16 +4,15 @@ function runWithSettings(funcToRun) {
         .then((json) => {
             gSettings = json;
             gHideMic = gSettings.hideMicDefault;
-            switch (gSettings.ws) {
-                case 'ws':
-                    gServer = "ws://" + window.location.host + ":8188";
-                    break;
-                case 'wss':
-                    gServer = "wss://" + window.location.host + ":8989";
-                    break;
-            }
             loadStoredHideMic();
             funcToRun();
+        })
+        .catch((err) => {
+            // Flaky WiFi while the page loads: keep trying rather than leave a dead page
+            console.warn("Could not load settings, retrying", err);
+            setTimeout(function() {
+                runWithSettings(funcToRun);
+            }, 2000);
         });
 }
 
